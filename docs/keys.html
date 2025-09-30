@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Secure API key management for ask - built-in commands to set, list, and manage your API keys safely."
+    />
+    <title>Key Management - ask</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header>
+      <div class="container">
+        <nav>
+          <a href="index.html" class="logo">
+            <pre>
+            _    
+   __ _ ___| | __
+  / _` / __| |/ /
+ | (_| \__ \   < 
+  \__,_|___/_|\_\</pre
+            >
+          </a>
+          <ul class="nav-links">
+            <li><a href="index.html#install">Install</a></li>
+            <li><a href="index.html#features">Features</a></li>
+            <li><a href="index.html#examples">Examples</a></li>
+            <li><a href="index.html#docs">Docs</a></li>
+            <li><a href="https://github.com/elias-ba/ask">GitHub</a></li>
+          </ul>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <div class="container">
+        <article class="content">
+          <div class="breadcrumbs">
+            <a href="index.html">Home</a> / Key Management
+          </div>
+
+          <h1>Key Management</h1>
+          <p>
+            ask provides built-in, secure API key management so you don't need
+            to mess with environment variables.
+          </p>
+
+          <h2 id="quick-start">Quick Start</h2>
+
+          <h3>First Time Setup</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Set your API key (will prompt securely)</span>
+ask keys set anthropic
+
+<span class="comment"># Paste your key when prompted (won't show on screen)</span>
+<span class="comment"># Enter your anthropic API key:</span>
+<span class="comment"># [key is hidden as you type]</span></code></pre>
+          </div>
+
+          <div class="alert alert-success">
+            <strong>That's it!</strong> Your key is saved and ready to use.
+          </div>
+
+          <h2 id="commands">Commands</h2>
+
+          <h3>Set a Key</h3>
+          <div class="code-block">
+            <pre><code>ask keys set anthropic
+ask keys set openai
+ask keys set openrouter</code></pre>
+          </div>
+          <p>
+            You'll be prompted to enter the key securely (it won't show on
+            screen).
+          </p>
+
+          <h3>List Configured Keys</h3>
+          <div class="code-block">
+            <pre><code>ask keys list
+
+<span class="comment"># Output:</span>
+<span class="comment"># Configured API Keys:</span>
+<span class="comment"># ✓ anthropic: sk-ant-...xyz</span>
+<span class="comment"># ○ openai: not set</span>
+<span class="comment"># ○ openrouter: not set</span></code></pre>
+          </div>
+          <p>Shows masked versions of your keys for security.</p>
+
+          <h3>Remove a Key</h3>
+          <div class="code-block">
+            <pre><code>ask keys remove anthropic</code></pre>
+          </div>
+
+          <h3>Show Keys File Location</h3>
+          <div class="code-block">
+            <pre><code>ask keys path
+
+<span class="comment"># Output: /home/user/.config/ask/keys.env</span></code></pre>
+          </div>
+
+          <h2 id="security">Security</h2>
+
+          <h3>Where Keys Are Stored</h3>
+          <p>Keys are stored in: <code>~/.config/ask/keys.env</code></p>
+
+          <p>
+            This file has <code>600</code> permissions (readable only by you):
+          </p>
+          <div class="code-block">
+            <pre><code>-rw------- 1 user user  123 Jan 01 12:00 keys.env</code></pre>
+          </div>
+
+          <h3>File Format</h3>
+          <p>The keys file is simple:</p>
+          <div class="code-block">
+            <pre><code>ANTHROPIC_API_KEY=sk-ant-your-key-here
+OPENAI_API_KEY=sk-your-key-here</code></pre>
+          </div>
+
+          <h3>Priority</h3>
+          <p>ask loads keys in this order:</p>
+          <ol>
+            <li><strong>Environment variables</strong> (if already set)</li>
+            <li>
+              <strong>Keys file</strong> (<code>~/.config/ask/keys.env</code>)
+            </li>
+          </ol>
+          <p>
+            Environment variables take precedence, so you can override the saved
+            keys temporarily.
+          </p>
+
+          <h2 id="use-cases">Common Use Cases</h2>
+
+          <h3>Switch Between Keys Temporarily</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Override saved key for one command</span>
+ANTHROPIC_API_KEY=<span class="string">'different-key'</span> ask <span class="string">"test query"</span>
+
+<span class="comment"># Or for a session</span>
+export ANTHROPIC_API_KEY=<span class="string">'different-key'</span>
+ask <span class="string">"query 1"</span>
+ask <span class="string">"query 2"</span></code></pre>
+          </div>
+
+          <h3>Multiple Accounts</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Save your work key</span>
+ask keys set anthropic
+<span class="comment"># (paste work key)</span>
+
+<span class="comment"># Use personal key temporarily</span>
+ANTHROPIC_API_KEY=<span class="string">'personal-key'</span> ask <span class="string">"personal query"</span>
+
+<span class="comment"># Work key is still saved for normal use</span>
+ask <span class="string">"work query"</span></code></pre>
+          </div>
+
+          <h3>Team Setup</h3>
+          <p>Share this with your team:</p>
+          <div class="code-block">
+            <pre><code><span class="comment"># Each team member runs:</span>
+ask keys set anthropic
+<span class="comment"># Paste team key</span>
+
+<span class="comment"># Or set environment variable in shared script:</span>
+export ANTHROPIC_API_KEY=<span class="string">'team-key'</span></code></pre>
+          </div>
+
+          <h2 id="comparison">Environment Variables vs Key Management</h2>
+
+          <h3>Using ask Key Management (Recommended)</h3>
+          <ul style="list-style: none; padding-left: 0">
+            <li>✅ Easier setup - no config file editing</li>
+            <li>✅ Secure by default (600 permissions)</li>
+            <li>✅ Easy to update (<code>ask keys set</code>)</li>
+            <li>
+              ✅ Easy to see what's configured (<code>ask keys list</code>)
+            </li>
+            <li>✅ Works out of the box</li>
+          </ul>
+
+          <div class="code-block">
+            <pre><code>ask keys set anthropic
+ask <span class="string">"your question"</span></code></pre>
+          </div>
+
+          <h3>Using Environment Variables (Traditional)</h3>
+          <ul style="list-style: none; padding-left: 0">
+            <li>✅ More control</li>
+            <li>✅ Can set in CI/CD easily</li>
+            <li>✅ Can scope to terminal session</li>
+            <li>⚠️ Need to edit shell config</li>
+            <li>⚠️ Easy to forget to source</li>
+          </ul>
+
+          <div class="code-block">
+            <pre><code>export ANTHROPIC_API_KEY=<span class="string">'sk-ant-...'</span>
+echo <span class="string">'export ANTHROPIC_API_KEY="sk-ant-..."'</span> &gt;&gt; ~/.bashrc
+source ~/.bashrc
+ask <span class="string">"your question"</span></code></pre>
+          </div>
+
+          <h2 id="troubleshooting">Troubleshooting</h2>
+
+          <h3>"API key not set" error</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Check if key is configured</span>
+ask keys list
+
+<span class="comment"># If not, set it</span>
+ask keys set anthropic</code></pre>
+          </div>
+
+          <h3>Want to use environment variable instead</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Just set it - it takes precedence</span>
+export ANTHROPIC_API_KEY=<span class="string">'your-key'</span></code></pre>
+          </div>
+
+          <h3>Key not working</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Check it's correct</span>
+ask keys list
+
+<span class="comment"># Remove and re-add</span>
+ask keys remove anthropic
+ask keys set anthropic</code></pre>
+          </div>
+
+          <h3>Forgot which provider I configured</h3>
+          <div class="code-block">
+            <pre><code>ask keys list
+
+<span class="comment"># Shows all providers and their status</span></code></pre>
+          </div>
+
+          <h3>Want to move keys file</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Keys file location</span>
+ask keys path
+
+<span class="comment"># Move it</span>
+mv ~/.config/ask/keys.env /new/location/keys.env
+
+<span class="comment"># Set XDG_CONFIG_HOME to new location</span>
+export XDG_CONFIG_HOME=/new/location</code></pre>
+          </div>
+
+          <h2 id="best-practices">Best Practices</h2>
+
+          <h3>1. Use ask Key Management for Personal Use</h3>
+          <div class="code-block">
+            <pre><code>ask keys set anthropic</code></pre>
+          </div>
+          <p>Simple, secure, easy.</p>
+
+          <h3>2. Use Environment Variables for CI/CD</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># GitHub Actions</span>
+env:
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+- run: ask <span class="string">"generate report"</span></code></pre>
+          </div>
+
+          <h3>3. Never Commit Keys</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Add to .gitignore</span>
+echo <span class="string">"keys.env"</span> &gt;&gt; .gitignore</code></pre>
+          </div>
+
+          <h3>4. Rotate Keys Regularly</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Every 90 days</span>
+ask keys set anthropic
+<span class="comment"># (paste new key)</span></code></pre>
+          </div>
+
+          <h3>5. Use Different Keys per Environment</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Production</span>
+export ANTHROPIC_API_KEY=<span class="string">'prod-key'</span>
+
+<span class="comment"># Development (saved)</span>
+ask keys set anthropic
+<span class="comment"># (paste dev key)</span>
+
+<span class="comment"># Production deploys use env var</span>
+<span class="comment"># Local dev uses saved key</span></code></pre>
+          </div>
+
+          <h2 id="pro-tips">Pro Tips</h2>
+
+          <h3>Quick Key Rotation</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># One command to rotate</span>
+ask keys set anthropic &amp;&amp; echo <span class="string">"✓ Key rotated"</span></code></pre>
+          </div>
+
+          <h3>Backup Keys File</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Backup</span>
+cp ~/.config/ask/keys.env ~/Dropbox/backups/ask-keys.env.backup
+
+<span class="comment"># Restore</span>
+cp ~/Dropbox/backups/ask-keys.env.backup ~/.config/ask/keys.env</code></pre>
+          </div>
+
+          <h3>Check Key Before Long Operation</h3>
+          <div class="code-block">
+            <pre><code>ask keys list
+ask --agent <span class="string">"long operation"</span></code></pre>
+          </div>
+
+          <h3>Multi-Provider Setup</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Set up all providers</span>
+ask keys set anthropic
+ask keys set openai
+ask keys set openrouter
+
+<span class="comment"># Switch between them easily</span>
+ask -p anthropic <span class="string">"query"</span>
+ask -p openai <span class="string">"query"</span>
+ask -p openrouter <span class="string">"query"</span></code></pre>
+          </div>
+
+          <h2 id="summary">Summary</h2>
+
+          <div class="alert alert-info">
+            <strong>Quick Setup:</strong>
+            <div class="code-block" style="margin-top: 0.5rem">
+              <pre><code>ask keys set anthropic</code></pre>
+            </div>
+          </div>
+
+          <div class="alert alert-info">
+            <strong>Check Status:</strong>
+            <div class="code-block" style="margin-top: 0.5rem">
+              <pre><code>ask keys list</code></pre>
+            </div>
+          </div>
+
+          <div
+            class="alert alert-success"
+            style="text-align: center; margin-top: 2rem"
+          >
+            <strong>That's it!</strong> ask handles the rest securely.
+          </div>
+        </article>
+      </div>
+    </main>
+
+    <footer>
+      <div class="container">
+        <p><strong>ask</strong> - AI-powered shell assistant</p>
+        <p style="margin-top: 0.5rem">
+          <a href="https://github.com/elias-ba/ask">GitHub</a> ·
+          <a href="https://github.com/elias-ba/ask/issues">Issues</a> ·
+          <a href="https://github.com/elias-ba/ask/discussions">Discussions</a>
+        </p>
+        <p
+          style="
+            margin-top: 1rem;
+            font-style: italic;
+            color: var(--text-secondary);
+          "
+        >
+          don't grep. don't awk. just ask
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

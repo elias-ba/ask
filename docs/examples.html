@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Comprehensive usage examples for ask - real-world patterns for development, sysadmin, DevOps, and more."
+    />
+    <title>Examples - ask</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header>
+      <div class="container">
+        <nav>
+          <a href="index.html" class="logo">
+            <pre>
+            _    
+   __ _ ___| | __
+  / _` / __| |/ /
+ | (_| \__ \   < 
+  \__,_|___/_|\_\</pre
+            >
+          </a>
+          <ul class="nav-links">
+            <li><a href="index.html#install">Install</a></li>
+            <li><a href="index.html#features">Features</a></li>
+            <li><a href="index.html#examples">Examples</a></li>
+            <li><a href="index.html#docs">Docs</a></li>
+            <li><a href="https://github.com/elias-ba/ask">GitHub</a></li>
+          </ul>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <div class="container">
+        <article class="content">
+          <div class="breadcrumbs">
+            <a href="index.html">Home</a> / Examples
+          </div>
+
+          <h1>Usage Examples</h1>
+          <p>Real-world examples of using ask in your daily workflow.</p>
+
+          <h2 id="quick-queries">Quick Queries</h2>
+
+          <h3>Basic Questions</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Simple questions</span>
+ask <span class="string">"what's the difference between TCP and UDP?"</span>
+
+<span class="comment"># Code explanations</span>
+ask <span class="string">"explain what this regex does: ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"</span>
+
+<span class="comment"># Best practices</span>
+ask <span class="string">"what's the best way to handle errors in bash scripts?"</span></code></pre>
+          </div>
+
+          <h3>With Piped Input</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Analyze logs</span>
+tail -100 /var/log/nginx/access.log | ask <span class="string">"summarize the traffic patterns"</span>
+
+<span class="comment"># Debug errors</span>
+cat error.log | ask <span class="string">"what's causing these errors and how to fix?"</span>
+
+<span class="comment"># Process data</span>
+ps aux | ask <span class="string">"what processes are using the most memory?"</span></code></pre>
+          </div>
+
+          <h3>With Custom System Prompts</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Security expert persona</span>
+ask --system <span class="string">"You are a security expert"</span> <span class="string">"review this code for vulnerabilities"</span> &lt; auth.py
+
+<span class="comment"># Database performance expert</span>
+ask --system <span class="string">"You are a database performance expert"</span> <span class="string">"optimize this SQL query"</span>
+
+<span class="comment"># Technical writer</span>
+ask --system <span class="string">"You are a technical documentation writer"</span> <span class="string">"document this API"</span> &lt; routes.js</code></pre>
+          </div>
+
+          <h3>Temperature Control</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Creative writing (higher temperature = more creative)</span>
+ask -t 1.5 <span class="string">"write a creative story about a developer"</span>
+
+<span class="comment"># Deterministic output (lower temperature = more focused)</span>
+ask -t 0.1 <span class="string">"extract structured data from this JSON"</span> &lt; data.json
+
+<span class="comment"># Balanced (default is 1.0)</span>
+ask -t 1.0 <span class="string">"explain how async/await works"</span></code></pre>
+          </div>
+
+          <h3>JSON Output</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># For programmatic use</span>
+ask --json --no-stream <span class="string">"list top 3 security practices"</span> | jq -r <span class="string">'.content[0].text'</span>
+
+<span class="comment"># Batch processing</span>
+<span class="keyword">for</span> file <span class="keyword">in</span> *.log; <span class="keyword">do</span>
+  errors=$(ask --json --no-stream <span class="string">"count error lines"</span> &lt; <span class="string">"$file"</span> | jq -r <span class="string">'.count'</span>)
+  echo <span class="string">"$file: $errors errors"</span>
+<span class="keyword">done</span></code></pre>
+          </div>
+
+          <h3>Multi-line Input</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Complex queries across multiple lines</span>
+ask --multiline &lt;&lt;<span class="string">'EOF'</span>
+Given this error stack trace, explain:
+1. Root cause
+2. How to fix
+3. How to prevent
+
+[paste stack trace here]
+<span class="string">EOF</span></code></pre>
+          </div>
+
+          <h2 id="shell-admin">Shell & System Administration</h2>
+
+          <h3>File Operations</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Find files intelligently</span>
+ask <span class="string">"find all javascript files modified in the last week"</span>
+
+<span class="comment"># Analyze disk usage</span>
+du -sh * | ask <span class="string">"which directories should I clean up first?"</span>
+
+<span class="comment"># Permission issues</span>
+ask <span class="string">"why can't I write to this directory?"</span> --context full</code></pre>
+          </div>
+
+          <h3>Process Management</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Debug hanging processes</span>
+ps aux | grep myapp | ask <span class="string">"is this process stuck?"</span>
+
+<span class="comment"># Resource monitoring</span>
+top -bn1 | ask <span class="string">"diagnose performance issues"</span>
+
+<span class="comment"># Kill processes safely</span>
+ask --agent <span class="string">"kill all zombie processes"</span></code></pre>
+          </div>
+
+          <h3>Networking</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Test connectivity</span>
+ping -c 5 google.com | ask <span class="string">"analyze the connection quality"</span>
+
+<span class="comment"># Port debugging</span>
+netstat -tulpn | ask <span class="string">"which service is using port 8080?"</span>
+
+<span class="comment"># SSL certificates</span>
+openssl s_client -connect example.com:443 | ask <span class="string">"when does this cert expire?"</span></code></pre>
+          </div>
+
+          <h2 id="development">Development Workflows</h2>
+
+          <h3>Git Workflows</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Smart commits (requires staged changes)</span>
+git add .
+ask commit
+<span class="comment"># Generates: "feat(api): add user authentication endpoint"</span>
+
+<span class="comment"># Review changes</span>
+git diff main..feature | ask <span class="string">"review this PR for issues"</span>
+
+<span class="comment"># PR review command</span>
+git checkout feature-branch
+ask pr-review
+<span class="comment"># Reviews current branch against main</span>
+
+<span class="comment"># Find commits</span>
+git log --oneline | ask <span class="string">"find the commit that added authentication"</span></code></pre>
+          </div>
+
+          <h3>Code Review</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Review specific file</span>
+git diff main src/auth.js | ask <span class="string">"security review this authentication code"</span>
+
+<span class="comment"># Find bugs</span>
+cat bug_report.txt | ask <span class="string">"what's the root cause?"</span> --context full
+
+<span class="comment"># With security expert</span>
+ask --system <span class="string">"You are a security auditor"</span> <span class="string">"find vulnerabilities"</span> &lt; app.py</code></pre>
+          </div>
+
+          <h3>Testing</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Generate tests</span>
+ask --fn test_user_login <span class="string">"create pytest tests for user login function"</span>
+
+<span class="comment"># Debug test failures</span>
+pytest -v | ask <span class="string">"why are these tests failing?"</span>
+
+<span class="comment"># Coverage analysis</span>
+coverage report | ask <span class="string">"what critical paths are missing tests?"</span></code></pre>
+          </div>
+
+          <h3>Debugging</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Diagnose last command failure</span>
+make build
+<span class="comment"># [build fails]</span>
+ask diagnose
+
+<span class="comment"># With full context</span>
+npm test
+<span class="comment"># [tests fail]</span>
+ask --context full diagnose</code></pre>
+          </div>
+
+          <h2 id="agent-mode">Agent Mode</h2>
+
+          <h3>Basic Agent Usage</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Simple task</span>
+ask --agent <span class="string">"create a backup directory with today's date"</span>
+
+<span class="comment"># Auto-approve low/medium risk (recommended)</span>
+ask --agent <span class="string">"organize files by type"</span>
+<span class="comment"># Type 'a' when prompted to auto-approve safe commands</span>
+
+<span class="comment"># Dry run (show plan without executing)</span>
+ask --agent --dry-run <span class="string">"delete old log files"</span></code></pre>
+          </div>
+
+          <h3>File Management</h3>
+          <div class="code-block">
+            <pre><code>ask --agent <span class="string">"organize these files by file type into subdirectories"</span>
+ask --agent <span class="string">"find and remove files larger than 100MB not modified in 30 days"</span>
+ask --agent <span class="string">"create timestamped backup of all .conf files"</span>
+ask --agent --dry-run <span class="string">"rename all JPEG files to lowercase"</span></code></pre>
+          </div>
+
+          <h3>Docker Operations</h3>
+          <div class="code-block">
+            <pre><code>ask --agent <span class="string">"remove all stopped containers and unused images"</span>
+ask --agent <span class="string">"restart unhealthy containers"</span>
+ask --agent <span class="string">"find containers using more than 1GB RAM"</span>
+ask --agent --tools <span class="string">"docker"</span> <span class="string">"cleanup unused volumes"</span></code></pre>
+          </div>
+
+          <h3>Restricted Agent Tools</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Only allow specific tools</span>
+ask --agent --tools <span class="string">"curl,jq"</span> <span class="string">"fetch and parse this API endpoint"</span>
+
+<span class="comment"># Git-only operations</span>
+ask --agent --tools <span class="string">"git"</span> <span class="string">"create feature branch and initial commit"</span>
+
+<span class="comment"># Safe read-only tools</span>
+ask --agent --tools <span class="string">"cat,grep,find"</span> <span class="string">"analyze log patterns"</span></code></pre>
+          </div>
+
+          <h2 id="functions">Function Generation</h2>
+
+          <h3>Basic Function Generation</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Generate a function</span>
+ask --fn parse_nginx <span class="string">"extract 500 errors from nginx access logs"</span>
+
+<span class="comment"># ask will:</span>
+<span class="comment"># 1. Generate the function</span>
+<span class="comment"># 2. Validate syntax</span>
+<span class="comment"># 3. Show preview</span>
+<span class="comment"># 4. Ask: Save? (y/n/e to edit)</span></code></pre>
+          </div>
+
+          <h3>Log Parsing Functions</h3>
+          <div class="code-block">
+            <pre><code>ask --fn parse_nginx_errors <span class="string">"extract all 500 errors with timestamp and URL"</span>
+ask --fn find_slow_queries <span class="string">"find SQL queries taking more than 1 second"</span>
+ask --fn tail_errors <span class="string">"tail system logs and highlight errors in red"</span>
+ask --fn parse_json_logs <span class="string">"parse and pretty-print JSON log entries"</span></code></pre>
+          </div>
+
+          <h3>Using Generated Functions</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Source the functions file</span>
+source ~/.config/ask/functions.sh
+
+<span class="comment"># Now use your functions</span>
+parse_nginx_errors /var/log/nginx/access.log
+csv_unique data.csv email
+git_clean_branches
+
+<span class="comment"># Add to .bashrc for permanent use</span>
+echo <span class="string">'source ~/.config/ask/functions.sh'</span> &gt;&gt; ~/.bashrc</code></pre>
+          </div>
+
+          <h2 id="interactive">Interactive Mode</h2>
+
+          <h3>Starting Interactive Mode</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Start interactive session</span>
+ask
+
+<span class="comment"># You'll see the banner and prompt</span>
+ask&gt; your question here</code></pre>
+          </div>
+
+          <h3>Interactive Commands</h3>
+          <div class="code-block">
+            <pre><code>ask&gt; /clear     <span class="comment"># Clear conversation history</span>
+ask&gt; /save      <span class="comment"># Save conversation</span>
+ask&gt; /load      <span class="comment"># Load previous conversation</span>
+ask&gt; /models    <span class="comment"># List available models</span>
+ask&gt; /switch openai gpt-4o  <span class="comment"># Switch provider/model</span>
+ask&gt; /context full          <span class="comment"># Change context level</span>
+ask&gt; /help      <span class="comment"># Show help</span>
+ask&gt; /exit      <span class="comment"># Exit</span></code></pre>
+          </div>
+
+          <h2 id="data-analysis">Data Analysis</h2>
+
+          <h3>CSV Files</h3>
+          <div class="code-block">
+            <pre><code>cat sales.csv | ask <span class="string">"what are the top 5 products by revenue?"</span>
+cat metrics.csv | ask <span class="string">"detect any unusual patterns in this data"</span>
+cat data.csv | ask <span class="string">"create a summary report with key insights"</span></code></pre>
+          </div>
+
+          <h3>JSON Processing</h3>
+          <div class="code-block">
+            <pre><code>cat api_response.json | ask <span class="string">"extract all user emails where status is active"</span>
+ask <span class="string">"is this valid JSON and what structure does it have?"</span> &lt; data.json
+cat input.json | ask <span class="string">"convert this to CSV format"</span></code></pre>
+          </div>
+
+          <h3>Log Analysis</h3>
+          <div class="code-block">
+            <pre><code>cat app.log | ask <span class="string">"group errors by type and show frequency"</span>
+cat access.log | ask <span class="string">"calculate average response time by endpoint"</span>
+cat auth.log | ask <span class="string">"find suspicious login attempts"</span></code></pre>
+          </div>
+
+          <h2 id="security">Security & Compliance</h2>
+
+          <h3>Security Checks</h3>
+          <div class="code-block">
+            <pre><code>ask --agent <span class="string">"find files with world-writable permissions"</span>
+ask <span class="string">"check if these passwords meet security requirements"</span> &lt; passwords.txt
+npm audit | ask <span class="string">"prioritize these vulnerabilities by severity"</span>
+ask --system <span class="string">"You are a security expert"</span> <span class="string">"audit this code"</span> &lt; app.py</code></pre>
+          </div>
+
+          <h3>Compliance</h3>
+          <div class="code-block">
+            <pre><code>ask <span class="string">"scan this code for GDPR compliance issues"</span> &lt; user_service.py
+ask --agent <span class="string">"list all open source licenses in node_modules"</span>
+ask --agent <span class="string">"scan for exposed API keys or credentials"</span></code></pre>
+          </div>
+
+          <h2 id="devops">DevOps & CI/CD</h2>
+
+          <h3>Kubernetes</h3>
+          <div class="code-block">
+            <pre><code>kubectl get pods | ask <span class="string">"which pods are crashlooping?"</span>
+kubectl top nodes | ask <span class="string">"which node is overutilized?"</span>
+kubectl logs -f mypod | ask <span class="string">"alert me to errors in real-time"</span>
+kubectl get deployment myapp -o yaml | ask <span class="string">"check for security issues"</span></code></pre>
+          </div>
+
+          <h3>CI/CD Debugging</h3>
+          <div class="code-block">
+            <pre><code>ask <span class="string">"why did this build fail?"</span> &lt; build.log
+ask --context full <span class="string">"debug this deployment failure"</span>
+ask <span class="string">"compare these benchmark results"</span> &lt; benchmarks.txt
+ask --json --no-stream <span class="string">"extract failure reason"</span> &lt; ci.log | jq -r <span class="string">'.reason'</span></code></pre>
+          </div>
+
+          <h3>Infrastructure</h3>
+          <div class="code-block">
+            <pre><code>terraform plan | ask <span class="string">"explain these changes in plain English"</span>
+ask <span class="string">"convert this bash script to an Ansible playbook"</span> &lt; deploy.sh
+ask <span class="string">"review this nginx config for security issues"</span> &lt; nginx.conf</code></pre>
+          </div>
+
+          <h2 id="advanced">Advanced Usage</h2>
+
+          <h3>Combining Multiple Features</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Expert persona + full context + agent mode</span>
+ask --system <span class="string">"You are a DevOps expert"</span> \
+    --context full \
+    --agent \
+    <span class="string">"set up monitoring for this service"</span>
+
+<span class="comment"># JSON output + no streaming for scripting</span>
+ask --json --no-stream \
+    --system <span class="string">"You are a data analyst"</span> \
+    <span class="string">"summarize key metrics"</span> &lt; metrics.csv | jq</code></pre>
+          </div>
+
+          <h3>Configuration & Environment</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Set default provider</span>
+export ASK_PROVIDER=openai
+ask <span class="string">"your question"</span>  <span class="comment"># Uses OpenAI</span>
+
+<span class="comment"># Set default model</span>
+export ASK_MODEL=gpt-4o
+
+<span class="comment"># Temporary override</span>
+ASK_MODEL=gpt-4o-mini ask <span class="string">"quick question"</span></code></pre>
+          </div>
+
+          <h2 id="pro-tips">Pro Tips</h2>
+
+          <h3>Context Awareness</h3>
+          <div class="code-block">
+            <pre><code>ask --context min <span class="string">"quick question"</span>     <span class="comment"># Fast, minimal context</span>
+ask --context auto <span class="string">"debug this"</span>        <span class="comment"># Balanced (default)</span>
+ask --context full <span class="string">"complex analysis"</span>  <span class="comment"># Maximum context</span></code></pre>
+          </div>
+
+          <h3>Chaining Commands</h3>
+          <div class="code-block">
+            <pre><code>git diff | ask <span class="string">"summarize changes"</span> | ask <span class="string">"suggest commit message"</span>
+find . -name <span class="string">"*.js"</span> | xargs cat | ask <span class="string">"find code smells"</span></code></pre>
+          </div>
+
+          <h3>Model Selection</h3>
+          <div class="code-block">
+            <pre><code>ask -m gpt-4o-mini <span class="string">"quick question"</span>        <span class="comment"># Fast &amp; cheap</span>
+ask -m claude-opus-4 <span class="string">"design architecture"</span>  <span class="comment"># Powerful</span>
+ask --list-models                            <span class="comment"># List all</span></code></pre>
+          </div>
+
+          <h2 id="learning">Learning & Documentation</h2>
+
+          <h3>Explain Commands</h3>
+          <div class="code-block">
+            <pre><code>ask <span class="string">"explain: find . -type f -name '*.log' -mtime +30 -delete"</span>
+ask <span class="string">"how does parameter expansion work in bash?"</span>
+ask <span class="string">"explain grep options with examples"</span></code></pre>
+          </div>
+
+          <h3>Generate Documentation</h3>
+          <div class="code-block">
+            <pre><code>cat myfunction.py | ask <span class="string">"generate docstring for this function"</span>
+ask <span class="string">"create a README for this project"</span> --context full
+ask <span class="string">"document this REST API"</span> &lt; api_routes.js</code></pre>
+          </div>
+
+          <h2 id="workflows">Daily Workflows</h2>
+
+          <h3>Morning Routine</h3>
+          <div class="code-block">
+            <pre><code>ask --context full <span class="string">"daily system health check"</span>
+git status | ask <span class="string">"summarize what I was working on"</span>
+ask <span class="string">"based on my recent commits, what should I focus on today?"</span></code></pre>
+          </div>
+
+          <h3>Code Review Workflow</h3>
+          <div class="code-block">
+            <pre><code>git diff main..feature &gt; /tmp/pr.diff
+ask --system <span class="string">"You are a senior code reviewer"</span> <span class="string">"review this PR"</span> &lt; /tmp/pr.diff
+ask --system <span class="string">"You are a security expert"</span> <span class="string">"security review"</span> &lt; /tmp/pr.diff
+ask <span class="string">"suggest test cases for this PR"</span> &lt; /tmp/pr.diff</code></pre>
+          </div>
+
+          <h3>Debugging Workflow</h3>
+          <div class="code-block">
+            <pre><code>./myapp 2&gt;&amp;1 | tee error.log
+ask <span class="string">"what's wrong?"</span> &lt; error.log
+ask --context full <span class="string">"debug this error"</span>
+ask --agent --dry-run <span class="string">"fix this issue"</span>
+ask --agent <span class="string">"fix this issue"</span></code></pre>
+          </div>
+
+          <h2 id="keys">Key Management</h2>
+
+          <h3>First Time Setup</h3>
+          <div class="code-block">
+            <pre><code>ask keys set anthropic
+ask keys set openai
+ask keys set openrouter
+ask keys list</code></pre>
+          </div>
+
+          <h3>Managing Multiple Keys</h3>
+          <div class="code-block">
+            <pre><code>ask keys list
+ask keys remove openai
+ask keys path
+ANTHROPIC_API_KEY=<span class="string">'different-key'</span> ask <span class="string">"test query"</span></code></pre>
+          </div>
+
+          <h2 id="troubleshooting">Troubleshooting</h2>
+
+          <h3>Command Not Found</h3>
+          <div class="code-block">
+            <pre><code>which ask
+echo $PATH
+export PATH=<span class="string">"$HOME/.local/bin:$PATH"</span></code></pre>
+          </div>
+
+          <h3>API Key Issues</h3>
+          <div class="code-block">
+            <pre><code>ask keys list
+ask keys set anthropic
+ask <span class="string">"test"</span></code></pre>
+          </div>
+
+          <h3>Streaming Issues</h3>
+          <div class="code-block">
+            <pre><code>ask -n <span class="string">"your query"</span>
+export ASK_STREAM=false</code></pre>
+          </div>
+
+          <h3>Performance Issues</h3>
+          <div class="code-block">
+            <pre><code>ask --context min <span class="string">"quick question"</span>
+ask -m gpt-4o-mini <span class="string">"simple task"</span>
+ask -n <span class="string">"query"</span></code></pre>
+          </div>
+
+          <hr
+            style="
+              margin: 3rem 0;
+              border: 0;
+              border-top: 1px solid var(--border);
+            "
+          />
+
+          <h2>More Examples?</h2>
+          <p>
+            <strong>Share yours!</strong> Open a PR or discussion on
+            <a href="https://github.com/elias-ba/ask">GitHub</a>.
+          </p>
+
+          <div class="alert alert-info">
+            <strong>Need help?</strong> Just ask:
+            <div class="code-block" style="margin-top: 0.5rem">
+              <pre><code>ask <span class="string">"how do I use ask effectively?"</span></code></pre>
+            </div>
+          </div>
+
+          <p style="margin-top: 2rem">
+            <strong>Repository</strong>:
+            <a href="https://github.com/elias-ba/ask"
+              >github.com/elias-ba/ask</a
+            >
+          </p>
+
+          <div class="alert alert-info" style="text-align: center">
+            <strong>don't grep. don't awk. just ask</strong>
+          </div>
+        </article>
+      </div>
+    </main>
+
+    <footer>
+      <div class="container">
+        <p><strong>ask</strong> - AI-powered shell assistant</p>
+        <p style="margin-top: 0.5rem">
+          <a href="https://github.com/elias-ba/ask">GitHub</a> ·
+          <a href="https://github.com/elias-ba/ask/issues">Issues</a> ·
+          <a href="https://github.com/elias-ba/ask/discussions">Discussions</a>
+        </p>
+        <p
+          style="
+            margin-top: 1rem;
+            font-style: italic;
+            color: var(--text-secondary);
+          "
+        >
+          don't grep. don't awk. just ask
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

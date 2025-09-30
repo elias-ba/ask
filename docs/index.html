@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="ask - AI-powered shell assistant. Don't grep. Don't awk. Just ask."
+    />
+    <title>ask - AI-powered shell assistant</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      :root {
+        --bg: #0d1117;
+        --bg-secondary: #161b22;
+        --bg-tertiary: #21262d;
+        --text: #c9d1d9;
+        --text-secondary: #8b949e;
+        --accent: #58a6ff;
+        --accent-hover: #1f6feb;
+        --green: #3fb950;
+        --yellow: #d29922;
+        --border: #30363d;
+        --code-bg: #161b22;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+          Helvetica, Arial, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.6;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 20px;
+      }
+
+      /* Header */
+      header {
+        background: var(--bg-secondary);
+        border-bottom: 1px solid var(--border);
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        backdrop-filter: blur(10px);
+      }
+
+      nav {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 0;
+      }
+
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: var(--accent);
+        text-decoration: none;
+      }
+
+      .logo pre {
+        font-size: 0.7rem;
+        line-height: 1;
+        color: var(--accent);
+      }
+
+      .nav-links {
+        display: flex;
+        gap: 2rem;
+        list-style: none;
+      }
+
+      .nav-links a {
+        color: var(--text);
+        text-decoration: none;
+        transition: color 0.2s;
+      }
+
+      .nav-links a:hover {
+        color: var(--accent);
+      }
+
+      /* Hero */
+      .hero {
+        padding: 4rem 0;
+        text-align: center;
+      }
+
+      .hero pre {
+        font-size: 1.2rem;
+        color: var(--accent);
+        margin-bottom: 2rem;
+        line-height: 1.2;
+      }
+
+      .hero h1 {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        background: linear-gradient(
+          135deg,
+          var(--accent) 0%,
+          var(--green) 100%
+        );
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .tagline {
+        font-size: 1.5rem;
+        color: var(--text-secondary);
+        margin-bottom: 3rem;
+        font-style: italic;
+      }
+
+      .cta-buttons {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+
+      .btn {
+        padding: 0.75rem 2rem;
+        border-radius: 6px;
+        text-decoration: none;
+        font-weight: 600;
+        transition: all 0.2s;
+        display: inline-block;
+      }
+
+      .btn-primary {
+        background: var(--accent);
+        color: var(--bg);
+      }
+
+      .btn-primary:hover {
+        background: var(--accent-hover);
+        transform: translateY(-2px);
+      }
+
+      .btn-secondary {
+        border: 1px solid var(--border);
+        color: var(--text);
+      }
+
+      .btn-secondary:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      /* Installation */
+      .section {
+        padding: 4rem 0;
+      }
+
+      .section-title {
+        font-size: 2rem;
+        margin-bottom: 2rem;
+        text-align: center;
+      }
+
+      .code-block {
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        overflow-x: auto;
+      }
+
+      .code-block pre {
+        font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono",
+          monospace;
+        font-size: 0.9rem;
+        line-height: 1.5;
+      }
+
+      .code-block code {
+        color: var(--text);
+      }
+
+      /* Features */
+      .features-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 2rem;
+        margin-top: 3rem;
+      }
+
+      .feature-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 2rem;
+        transition: all 0.3s;
+      }
+
+      .feature-card:hover {
+        border-color: var(--accent);
+        transform: translateY(-4px);
+      }
+
+      .feature-icon {
+        font-size: 2rem;
+        margin-bottom: 1rem;
+      }
+
+      .feature-card h3 {
+        color: var(--accent);
+        margin-bottom: 0.5rem;
+      }
+
+      .feature-card p {
+        color: var(--text-secondary);
+      }
+
+      /* Examples */
+      .example {
+        margin: 2rem 0;
+      }
+
+      .example h3 {
+        color: var(--accent);
+        margin-bottom: 0.5rem;
+      }
+
+      .example p {
+        color: var(--text-secondary);
+        margin-bottom: 1rem;
+      }
+
+      /* Footer */
+      footer {
+        background: var(--bg-secondary);
+        border-top: 1px solid var(--border);
+        padding: 3rem 0;
+        margin-top: 4rem;
+        text-align: center;
+      }
+
+      footer p {
+        color: var(--text-secondary);
+      }
+
+      footer a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+
+      footer a:hover {
+        text-decoration: underline;
+      }
+
+      /* Responsive */
+      @media (max-width: 768px) {
+        .hero h1 {
+          font-size: 2rem;
+        }
+
+        .tagline {
+          font-size: 1.2rem;
+        }
+
+        .nav-links {
+          gap: 1rem;
+        }
+
+        .features-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      /* Syntax highlighting */
+      .comment {
+        color: #6a737d;
+      }
+      .string {
+        color: #9ecbff;
+      }
+      .keyword {
+        color: #f97583;
+      }
+      .function {
+        color: #b392f0;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="container">
+        <nav>
+          <a href="/" class="logo">
+            <pre>
+            _    
+   __ _ ___| | __
+  / _` / __| |/ /
+ | (_| \__ \   < 
+  \__,_|___/_|\_\</pre
+            >
+          </a>
+          <ul class="nav-links">
+            <li><a href="#install">Install</a></li>
+            <li><a href="#features">Features</a></li>
+            <li><a href="#examples">Examples</a></li>
+            <li><a href="#docs">Docs</a></li>
+            <li><a href="https://github.com/elias-ba/ask">GitHub</a></li>
+          </ul>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="container">
+          <h1>AI-powered shell assistant</h1>
+          <p class="tagline">don't grep. don't awk. just ask</p>
+
+          <div class="cta-buttons">
+            <a href="#install" class="btn btn-primary">Get Started</a>
+            <a href="https://github.com/elias-ba/ask" class="btn btn-secondary"
+              >View on GitHub</a
+            >
+          </div>
+        </div>
+      </section>
+
+      <section id="install" class="section">
+        <div class="container">
+          <h2 class="section-title">Quick Install</h2>
+
+          <div class="code-block">
+            <pre><code><span class="comment"># One-line installation</span>
+curl -fsSL https://raw.githubusercontent.com/elias-ba/ask/main/install.sh | bash
+
+<span class="comment"># Set up your API key</span>
+ask keys set anthropic
+
+<span class="comment"># Start asking!</span>
+ask <span class="string">"how do I find large files?"</span></code></pre>
+          </div>
+
+          <p
+            style="
+              text-align: center;
+              color: var(--text-secondary);
+              margin-top: 2rem;
+            "
+          >
+            Requires bash 3.x+, curl, and jq
+          </p>
+        </div>
+      </section>
+
+      <section id="features" class="section">
+        <div class="container">
+          <h2 class="section-title">Why ask?</h2>
+
+          <div class="features-grid">
+            <div class="feature-card">
+              <h3>Agent Mode</h3>
+              <p>
+                Let AI execute tasks for you with risk-assessed command
+                execution. Auto-approve safe operations or review each step.
+              </p>
+            </div>
+
+            <div class="feature-card">
+              <h3>Shell Native</h3>
+              <p>
+                Works perfectly with pipes, redirects, and Unix philosophy. Pure
+                bash, no Python or Node required.
+              </p>
+            </div>
+
+            <div class="feature-card">
+              <h3>Function Generation</h3>
+              <p>
+                Generate reusable bash functions from descriptions. Build your
+                own custom toolset.
+              </p>
+            </div>
+
+            <div class="feature-card">
+              <h3>Streaming Responses</h3>
+              <p>
+                See answers in real-time as they're generated. Fast, responsive,
+                and interactive.
+              </p>
+            </div>
+
+            <div class="feature-card">
+              <h3>Secure Key Management</h3>
+              <p>
+                Built-in API key management with 600 permissions. No config file
+                editing needed.
+              </p>
+            </div>
+
+            <div class="feature-card">
+              <h3>Context Aware</h3>
+              <p>
+                Understands your git repo, recent commands, system state, and
+                working directory automatically.
+              </p>
+            </div>
+
+            <div class="feature-card">
+              <h3>Multi-Provider</h3>
+              <p>
+                Works with Anthropic, OpenAI, and OpenRouter. Switch models and
+                providers on the fly.
+              </p>
+            </div>
+
+            <div class="feature-card">
+              <h3>Interactive Mode</h3>
+              <p>
+                Start conversations, save history, switch models mid-chat. Full
+                conversation management.
+              </p>
+            </div>
+
+            <div class="feature-card">
+              <h3>Git Integration</h3>
+              <p>
+                Generate semantic commit messages, review PRs, explain changes.
+                Built for developers.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section
+        id="examples"
+        class="section"
+        style="background: var(--bg-secondary)"
+      >
+        <div class="container">
+          <h2 class="section-title">Quick Examples</h2>
+
+          <div class="example">
+            <h3>Simple Queries</h3>
+            <div class="code-block">
+              <pre><code><span class="comment"># Quick questions</span>
+ask <span class="string">"how do I find large files in Linux?"</span>
+
+<span class="comment"># With piped input</span>
+git log --oneline | ask <span class="string">"summarize recent changes"</span>
+
+<span class="comment"># Debug errors</span>
+cat error.log | ask <span class="string">"what's causing these errors?"</span></code></pre>
+            </div>
+          </div>
+
+          <div class="example">
+            <h3>Agent Mode</h3>
+            <p>Let ask execute tasks safely with approval</p>
+            <div class="code-block">
+              <pre><code><span class="comment"># Organize files automatically</span>
+ask --agent <span class="string">"organize these files by type"</span>
+
+<span class="comment"># Dry run first</span>
+ask --agent --dry-run <span class="string">"cleanup old docker images"</span>
+
+<span class="comment"># Auto-approve safe commands</span>
+ask --agent <span class="string">"find TODO comments"</span>
+<span class="comment"># Type 'a' when prompted to auto-approve</span></code></pre>
+            </div>
+          </div>
+
+          <div class="example">
+            <h3>Generate Functions</h3>
+            <p>Create reusable bash functions</p>
+            <div class="code-block">
+              <pre><code><span class="comment"># Generate a function</span>
+ask --fn parse_nginx <span class="string">"extract 500 errors from nginx logs"</span>
+
+<span class="comment"># Use it immediately</span>
+source ~/.config/ask/functions.sh
+parse_nginx /var/log/nginx/access.log</code></pre>
+            </div>
+          </div>
+
+          <div class="example">
+            <h3>Git Workflow</h3>
+            <p>Smart git integration</p>
+            <div class="code-block">
+              <pre><code><span class="comment"># Generate semantic commit message</span>
+git add .
+ask commit
+
+<span class="comment"># Review PR changes</span>
+ask pr-review
+
+<span class="comment"># Explain what changed</span>
+git diff main | ask <span class="string">"explain these changes"</span></code></pre>
+            </div>
+          </div>
+
+          <div class="example">
+            <h3>Interactive Mode</h3>
+            <p>Start a conversation</p>
+            <div class="code-block">
+              <pre><code><span class="comment"># Start interactive chat</span>
+ask
+
+<span class="comment"># Use special commands</span>
+ask&gt; /models          <span class="comment"># List available models</span>
+ask&gt; /switch openai   <span class="comment"># Switch provider</span>
+ask&gt; /context full    <span class="comment"># Enable full context</span>
+ask&gt; /save            <span class="comment"># Save conversation</span>
+ask&gt; /exit            <span class="comment"># Exit</span></code></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="docs" class="section">
+        <div class="container">
+          <h2 class="section-title">Documentation</h2>
+
+          <div class="features-grid">
+            <div class="feature-card">
+              <h3>Quick Start</h3>
+              <p>Get up and running in 5 minutes</p>
+              <a
+                href="quickstart.html"
+                class="btn btn-secondary"
+                style="margin-top: 1rem"
+                >Read Guide →</a
+              >
+            </div>
+
+            <div class="feature-card">
+              <h3>Examples</h3>
+              <p>Usage examples and patterns</p>
+              <a
+                href="examples.html"
+                class="btn btn-secondary"
+                style="margin-top: 1rem"
+                >View Examples →</a
+              >
+            </div>
+
+            <div class="feature-card">
+              <h3>Key Management</h3>
+              <p>Secure API key setup and management</p>
+              <a
+                href="keys.html"
+                class="btn btn-secondary"
+                style="margin-top: 1rem"
+                >Learn More →</a
+              >
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="container">
+        <p><strong>ask</strong> - AI-powered shell assistant</p>
+        <p style="margin-top: 0.5rem">
+          <a href="https://github.com/elias-ba/ask">GitHub</a> ·
+          <a href="https://github.com/elias-ba/ask/issues">Issues</a> ·
+          <a href="https://github.com/elias-ba/ask/discussions">Discussions</a>
+        </p>
+        <p
+          style="
+            margin-top: 1rem;
+            font-style: italic;
+            color: var(--text-secondary);
+          "
+        >
+          don't grep. don't awk. just ask
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Get up and running with ask in 5 minutes. Quick installation, API key setup, and essential commands."
+    />
+    <title>Quick Start - ask</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header>
+      <div class="container">
+        <nav>
+          <a href="index.html" class="logo">
+            <pre>
+            _    
+   __ _ ___| | __
+  / _` / __| |/ /
+ | (_| \__ \   < 
+  \__,_|___/_|\_\</pre
+            >
+          </a>
+          <ul class="nav-links">
+            <li><a href="index.html#install">Install</a></li>
+            <li><a href="index.html#features">Features</a></li>
+            <li><a href="index.html#examples">Examples</a></li>
+            <li><a href="index.html#docs">Docs</a></li>
+            <li><a href="https://github.com/elias-ba/ask">GitHub</a></li>
+          </ul>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <div class="container">
+        <article class="content">
+          <div class="breadcrumbs">
+            <a href="index.html">Home</a> / Quick Start
+          </div>
+
+          <h1>Quick Start Guide</h1>
+          <p>Get up and running with ask in 5 minutes.</p>
+
+          <h2 id="installation">Installation</h2>
+
+          <h3>One-Line Install</h3>
+          <div class="code-block">
+            <pre><code>curl -fsSL https://raw.githubusercontent.com/elias-ba/ask/main/install.sh | bash</code></pre>
+          </div>
+
+          <h3>Manual Install</h3>
+          <div class="code-block">
+            <pre><code>curl -o ask https://raw.githubusercontent.com/elias-ba/ask/main/ask
+chmod +x ask
+sudo mv ask /usr/local/bin/</code></pre>
+          </div>
+
+          <h3>Verify Installation</h3>
+          <div class="code-block">
+            <pre><code>ask --version
+<span class="comment"># ask v1.0.0</span></code></pre>
+          </div>
+
+          <h2 id="setup">Setup API Key</h2>
+          <p>ask makes this super easy - no need to edit config files!</p>
+
+          <h3>Set Your API Key</h3>
+          <div class="code-block">
+            <pre><code>ask keys set anthropic
+<span class="comment"># You'll be prompted to paste your key (it won't show on screen)</span></code></pre>
+          </div>
+
+          <div class="alert alert-success">
+            <strong>That's it!</strong> ask stores it securely in
+            <code>~/.config/ask/keys.env</code>
+          </div>
+
+          <h3>Get an API Key</h3>
+          <p>Choose a provider:</p>
+
+          <div style="display: grid; gap: 1rem; margin: 1.5rem 0">
+            <div class="feature-card">
+              <h4>Anthropic (Recommended)</h4>
+              <p>
+                Get key at:
+                <a href="https://console.anthropic.com/"
+                  >console.anthropic.com</a
+                >
+              </p>
+              <ul>
+                <li>Free tier available</li>
+                <li>Best for code and reasoning</li>
+              </ul>
+            </div>
+
+            <div class="feature-card">
+              <h4>OpenAI</h4>
+              <p>
+                Get key at:
+                <a href="https://platform.openai.com/api-keys"
+                  >platform.openai.com/api-keys</a
+                >
+              </p>
+              <ul>
+                <li>GPT-4, GPT-3.5 models</li>
+                <li>Pay as you go</li>
+              </ul>
+            </div>
+
+            <div class="feature-card">
+              <h4>OpenRouter</h4>
+              <p>
+                Get key at:
+                <a href="https://openrouter.ai/keys">openrouter.ai/keys</a>
+              </p>
+              <ul>
+                <li>Access to many models</li>
+                <li>Single API for everything</li>
+              </ul>
+            </div>
+          </div>
+
+          <h3>Verify Setup</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Check your configured keys</span>
+ask keys list
+
+<span class="comment"># Should show:</span>
+<span class="comment"># ✓ anthropic: sk-ant-...xyz</span></code></pre>
+          </div>
+
+          <h3>Alternative: Environment Variables</h3>
+          <p>If you prefer the old way:</p>
+          <div class="code-block">
+            <pre><code>export ANTHROPIC_API_KEY=<span class="string">'sk-ant-your-key-here'</span></code></pre>
+          </div>
+
+          <h2 id="first-commands">First Commands (2 minutes)</h2>
+
+          <h3>1. Ask a Simple Question</h3>
+          <div class="code-block">
+            <pre><code>ask <span class="string">"how do I find large files in Linux?"</span></code></pre>
+          </div>
+          <p>You'll see a streaming response instantly!</p>
+
+          <h3>2. Use with Pipes</h3>
+          <div class="code-block">
+            <pre><code>ls -lh | ask <span class="string">"explain this output"</span></code></pre>
+          </div>
+          <p>ask understands piped input naturally.</p>
+
+          <h3>3. Interactive Mode</h3>
+          <div class="code-block">
+            <pre><code>ask</code></pre>
+          </div>
+          <p>Start a conversation:</p>
+          <div class="code-block">
+            <pre><code>ask&gt; explain docker containers
+Assistant: [Streaming response...]
+
+ask&gt; show me an example
+Assistant: [Another response...]
+
+ask&gt; /exit</code></pre>
+          </div>
+
+          <h3>4. Generate a Commit Message</h3>
+          <div class="code-block">
+            <pre><code>git add .
+ask commit</code></pre>
+          </div>
+          <p>
+            ask analyzes your staged changes and suggests a semantic commit
+            message.
+          </p>
+
+          <h2 id="essential">Essential Commands</h2>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Command</th>
+                <th>What it does</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>ask "question"</code></td>
+                <td>Quick one-off query</td>
+              </tr>
+              <tr>
+                <td><code>ask</code></td>
+                <td>Interactive mode</td>
+              </tr>
+              <tr>
+                <td><code>ask commit</code></td>
+                <td>Generate git commit message</td>
+              </tr>
+              <tr>
+                <td><code>ask --help</code></td>
+                <td>Show all options</td>
+              </tr>
+              <tr>
+                <td><code>command | ask "query"</code></td>
+                <td>Use with pipes</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h2 id="power-features">Power Features</h2>
+
+          <h3>Agent Mode</h3>
+          <p>Let ask execute tasks:</p>
+          <div class="code-block">
+            <pre><code>ask --agent <span class="string">"find all TODO comments and count them by file"</span></code></pre>
+          </div>
+
+          <p>ask will:</p>
+          <ol>
+            <li>Create a safe execution plan</li>
+            <li>Show you what it will do</li>
+            <li>Ask for confirmation</li>
+            <li>Execute each step</li>
+          </ol>
+
+          <h3>Generate Reusable Functions</h3>
+          <div class="code-block">
+            <pre><code>ask --fn parse_logs <span class="string">"extract error lines from log files"</span></code></pre>
+          </div>
+
+          <p>ask creates a bash function you can use forever:</p>
+          <div class="code-block">
+            <pre><code>source ~/.config/ask/functions.sh
+parse_logs /var/log/app.log</code></pre>
+          </div>
+
+          <h3>Context Awareness</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># ask automatically includes:</span>
+<span class="comment"># - Current directory</span>
+<span class="comment"># - Git status (if in repo)</span>
+<span class="comment"># - Recent commands</span>
+<span class="comment"># - System info</span>
+
+ask --context full <span class="string">"why did that command fail?"</span></code></pre>
+          </div>
+
+          <h2 id="pro-tips">Pro Tips</h2>
+
+          <h3>1. Use Aliases</h3>
+          <p>Add to your shell config:</p>
+          <div class="code-block">
+            <pre><code>alias a=<span class="string">'ask'</span>
+alias ac=<span class="string">'ask commit'</span>
+alias ar=<span class="string">'ask pr-review'</span></code></pre>
+          </div>
+          <p>Now: <code>a "your question"</code></p>
+
+          <h3>2. Pipe Everything</h3>
+          <div class="code-block">
+            <pre><code>docker ps | ask <span class="string">"which containers are using most memory?"</span>
+cat error.log | ask <span class="string">"group errors by type"</span>
+git log --oneline | ask <span class="string">"summarize changes this week"</span></code></pre>
+          </div>
+
+          <h3>3. Switch Models</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Fast &amp; cheap</span>
+ask -m gpt-4o-mini <span class="string">"quick question"</span>
+
+<span class="comment"># Powerful reasoning</span>
+ask -m claude-opus-4 <span class="string">"complex analysis"</span></code></pre>
+          </div>
+
+          <h3>4. Save Important Conversations</h3>
+          <p>In interactive mode:</p>
+          <div class="code-block">
+            <pre><code>ask&gt; /save  <span class="comment"># Save conversation</span>
+ask&gt; /load  <span class="comment"># Resume later</span></code></pre>
+          </div>
+
+          <h2 id="use-cases">Common Use Cases</h2>
+
+          <h3>Development</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Understand code</span>
+cat myfile.py | ask <span class="string">"explain this code"</span>
+
+<span class="comment"># Generate tests</span>
+ask --fn test_auth <span class="string">"create pytest tests for auth module"</span>
+
+<span class="comment"># Review PRs</span>
+git diff main..feature | ask <span class="string">"review this code"</span></code></pre>
+          </div>
+
+          <h3>System Administration</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Debug issues</span>
+ps aux | ask <span class="string">"what's using all the CPU?"</span>
+
+<span class="comment"># Analyze logs</span>
+tail -100 /var/log/syslog | ask <span class="string">"any problems?"</span>
+
+<span class="comment"># Cleanup tasks</span>
+ask --agent <span class="string">"remove old docker images"</span></code></pre>
+          </div>
+
+          <h3>Data Analysis</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># CSV analysis</span>
+cat data.csv | ask <span class="string">"what are the key insights?"</span>
+
+<span class="comment"># JSON parsing</span>
+cat api.json | ask <span class="string">"extract all error messages"</span>
+
+<span class="comment"># Log patterns</span>
+ask <span class="string">"find common error patterns"</span> &lt; app.log</code></pre>
+          </div>
+
+          <h2 id="troubleshooting">Troubleshooting</h2>
+
+          <h3>"ask: command not found"</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Check if in PATH</span>
+which ask
+
+<span class="comment"># If not, add to PATH</span>
+export PATH=<span class="string">"$HOME/.local/bin:$PATH"</span></code></pre>
+          </div>
+
+          <h3>"API key not set"</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Check if set</span>
+echo $ANTHROPIC_API_KEY
+
+<span class="comment"># Set it</span>
+export ANTHROPIC_API_KEY=<span class="string">'sk-ant-...'</span>
+
+<span class="comment"># Make permanent</span>
+echo <span class="string">"export ANTHROPIC_API_KEY='sk-ant-...'"</span> &gt;&gt; ~/.bashrc</code></pre>
+          </div>
+
+          <h3>"curl: command not found"</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Ubuntu/Debian</span>
+sudo apt-get install curl jq
+
+<span class="comment"># macOS</span>
+brew install curl jq
+
+<span class="comment"># Fedora</span>
+sudo dnf install curl jq</code></pre>
+          </div>
+
+          <h3>Streaming Not Working?</h3>
+          <div class="code-block">
+            <pre><code><span class="comment"># Disable streaming</span>
+ask -n <span class="string">"your question"</span></code></pre>
+          </div>
+
+          <h2 id="next-steps">Next Steps</h2>
+
+          <ol>
+            <li>
+              <strong>Read Examples</strong>:
+              <a href="examples.html">View comprehensive examples</a>
+            </li>
+            <li>
+              <strong>Explore Interactive Mode</strong>: Try
+              <code>ask</code> and use <code>/help</code>
+            </li>
+            <li>
+              <strong>Generate Your First Function</strong>:
+              <code>ask --fn</code> for a task you do often
+            </li>
+            <li>
+              <strong>Try Agent Mode</strong>:
+              <code>ask --agent --dry-run</code> to see what it would do
+            </li>
+            <li>
+              <strong>Integrate with Git</strong>: Use
+              <code>ask commit</code> in your workflow
+            </li>
+          </ol>
+
+          <h2>You're Ready</h2>
+          <p>Start simple:</p>
+          <div class="code-block">
+            <pre><code>ask <span class="string">"what can you help me with?"</span></code></pre>
+          </div>
+
+          <div class="alert alert-info">
+            <strong>Remember:</strong> don't grep. don't awk. just ask
+          </div>
+
+          <hr
+            style="
+              margin: 3rem 0;
+              border: 0;
+              border-top: 1px solid var(--border);
+            "
+          />
+
+          <p><strong>Need more help?</strong></p>
+          <ul>
+            <li>Full documentation: <code>ask --help</code></li>
+            <li>Examples: <a href="examples.html">View Examples</a></li>
+            <li>
+              Issues:
+              <a href="https://github.com/elias-ba/ask/issues">GitHub Issues</a>
+            </li>
+          </ul>
+        </article>
+      </div>
+    </main>
+
+    <footer>
+      <div class="container">
+        <p><strong>ask</strong> - AI-powered shell assistant</p>
+        <p style="margin-top: 0.5rem">
+          <a href="https://github.com/elias-ba/ask">GitHub</a> ·
+          <a href="https://github.com/elias-ba/ask/issues">Issues</a> ·
+          <a href="https://github.com/elias-ba/ask/discussions">Discussions</a>
+        </p>
+        <p
+          style="
+            margin-top: 1rem;
+            font-style: italic;
+            color: var(--text-secondary);
+          "
+        >
+          don't grep. don't awk. just ask
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>
