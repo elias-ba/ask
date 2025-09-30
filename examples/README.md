@@ -35,7 +35,7 @@ git checkout feature-branch
 
 **Output Example**:
 
-```
+```bash
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [1] Reviewing: src/auth.js
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -104,7 +104,7 @@ Batch analysis of log files with AI-powered insights and summary reporting.
 
 **Report Structure**:
 
-```
+```bash
 Batch Log Analysis Report
 Generated: 2025-01-15 10:30:45
 Directory: /var/log
@@ -217,7 +217,7 @@ a3f21b9 feat(auth): add OAuth2 login support (just now)
 
 **Commit Message Format**:
 
-```
+```bash
 <type>(<scope>): <description>
 
 Types:
@@ -436,4 +436,4 @@ For more usage examples and patterns, see:
 
 ---
 
-**don't grep. don't awk. just ask**
+don't grep. don't awk. just ask

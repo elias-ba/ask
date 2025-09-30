@@ -174,4 +174,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to contribute to ask.
 
 ---
 
-**don't grep. don't awk. just ask**
+don't grep. don't awk. just ask

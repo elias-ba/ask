@@ -16,7 +16,7 @@ Found a bug? Please open an issue with:
 
 Example:
 
-```
+```bash
 Title: Agent mode fails with empty plan
 
 Description: When using agent mode with certain prompts,
@@ -100,6 +100,7 @@ Have an idea? Open an issue with:
    ```
 
 7. **Push and create PR**
+
    ```bash
    git push origin feature/your-feature-name
    # Then open a Pull Request on GitHub
@@ -258,7 +259,7 @@ Update documentation when you:
 
 ## Project Structure
 
-```
+```bash
 ask/
 ├── ask              # Main executable (this is what you edit)
 ├── install.sh       # Installation script
@@ -354,4 +355,4 @@ Not sure about something? Open an issue or discussion - we're happy to help!
 
 ---
 
-**don't grep. don't awk. just ask** (and contribute!)
+don't grep. don't awk. just ask (and contribute!)

@@ -7,7 +7,7 @@
 
 ```
 
-_"don't grep. don't awk. just ask"_
+_don't grep. don't awk. just ask_
 
 ask is a powerful AI-powered CLI tool for developers who live in the terminal. It brings multi-provider LLM support, agent capabilities, and shell-native intelligence to your fingertips.
 

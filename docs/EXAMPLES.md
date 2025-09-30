@@ -405,7 +405,7 @@ ask
 #  \__,_|___/_|\_\
 #
 # ask v1.0.0
-# "don't grep. don't awk. just ask"
+# don't grep. don't awk. just ask
 #
 # Provider: anthropic | Model: claude-sonnet-4-5
 # Streaming: true | Context: auto
@@ -1066,4 +1066,4 @@ ask "how do I use ask effectively?"
 
 **Repository**: https://github.com/elias-ba/ask
 
-**don't grep. don't awk. just ask**
+don't grep. don't awk. just ask

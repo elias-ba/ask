@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
 
-# ask Installer
-# Quick installation script for ask
-
 set -e
 
 INSTALL_DIR="/usr/local/bin"
@@ -10,7 +7,6 @@ CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/ask"
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/ask"
 REPO_URL="https://raw.githubusercontent.com/elias-ba/ask/main/ask"
 
-# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -30,12 +26,10 @@ ask - ai powered shell assistant
 EOF
 echo -e "${NC}"
 
-# Check if running as root for system install
 if [ "$EUID" -eq 0 ]; then
     INSTALL_DIR="/usr/local/bin"
     echo -e "${YELLOW}Installing system-wide to $INSTALL_DIR${NC}"
 else
-    # Check if user has write access to /usr/local/bin
     if [ -w "/usr/local/bin" ]; then
         INSTALL_DIR="/usr/local/bin"
         echo -e "${GREEN}Installing to $INSTALL_DIR${NC}"
@@ -47,7 +41,6 @@ else
     fi
 fi
 
-# Check dependencies
 echo -e "\n${CYAN}Checking dependencies...${NC}"
 missing_deps=()
 
@@ -77,16 +70,13 @@ else
     exit 1
 fi
 
-# Make executable
 chmod +x "$INSTALL_DIR/ask"
 echo -e "${GREEN}✓ Made executable${NC}"
 
-# Create config directories
 echo -e "\n${CYAN}Setting up configuration...${NC}"
 mkdir -p "$CONFIG_DIR" "$CACHE_DIR"
 echo -e "${GREEN}✓ Created config directories${NC}"
 
-# Create empty functions file
 cat > "$CONFIG_DIR/functions.sh" <<'EOF'
 # ask generated functions
 # Source this file: source ~/.config/ask/functions.sh
@@ -95,7 +85,6 @@ cat > "$CONFIG_DIR/functions.sh" <<'EOF'
 EOF
 echo -e "${GREEN}✓ Created functions file${NC}"
 
-# Check PATH
 echo -e "\n${CYAN}Checking PATH...${NC}"
 if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
     echo -e "${YELLOW}Warning: $INSTALL_DIR is not in your PATH${NC}"
@@ -105,7 +94,6 @@ else
     echo -e "${GREEN}✓ $INSTALL_DIR is in PATH${NC}"
 fi
 
-# Verify installation
 echo -e "\n${CYAN}Verifying installation...${NC}"
 if "$INSTALL_DIR/ask" --version &> /dev/null; then
     echo -e "${GREEN}✓ ask installed successfully!${NC}"
@@ -114,7 +102,6 @@ else
     exit 1
 fi
 
-# Check for API keys
 echo -e "\n${CYAN}Checking API keys...${NC}"
 keys_found=false
 
@@ -145,7 +132,6 @@ if [ "$keys_found" = false ]; then
     echo -e "  ${DIM}OpenRouter: https://openrouter.ai/keys${NC}"
 fi
 
-# Success message
 echo -e "\n${GREEN}${BOLD}🎉 Installation complete!${NC}\n"
 echo -e "${BOLD}Next steps:${NC}"
 echo -e "  1. Set up your API key:"

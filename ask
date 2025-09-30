@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
 
 # ask - AI-powered shell assistant
-# "don't grep. don't awk. just ask"
-# Compatible with Bash 3.x+
+# don't grep. don't awk. just ask
 
 VERSION="1.0.0"
 AUTHOR="Elias W. BA <eliaswalyba@gmail.com>"
 
-# Check Bash version (need 3.x+)
 if [ -z "$BASH_VERSION" ]; then
     echo "Error: This script requires Bash"
     exit 1
@@ -20,7 +18,6 @@ if [ "$BASH_MAJOR_VERSION" -lt 3 ]; then
     exit 1
 fi
 
-# Configuration
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/ask"
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/ask"
 HISTORY_FILE="$CACHE_DIR/history.jsonl"
@@ -28,7 +25,6 @@ FUNCTIONS_FILE="$CONFIG_DIR/functions.sh"
 CONTEXT_FILE="$CACHE_DIR/context.json"
 KEYS_FILE="$CONFIG_DIR/keys.env"
 
-# Defaults
 DEFAULT_PROVIDER="anthropic"
 DEFAULT_MODEL="claude-sonnet-4-5-20250929"
 DEFAULT_TEMPERATURE="1.0"
@@ -36,7 +32,6 @@ DEFAULT_MAX_TOKENS="4096"
 STREAM_ENABLED=true
 MAX_HISTORY=100
 
-# Model mappings (Bash 3.x compatible)
 get_models() {
     local provider=$1
     case $provider in
@@ -55,7 +50,6 @@ get_api_url() {
     esac
 }
 
-# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -66,10 +60,8 @@ BOLD='\033[1m'
 DIM='\033[2m'
 NC='\033[0m'
 
-# Conversation state (Bash 3.x compatible - using indexed array)
 CONVERSATION_JSON=""
 
-# Current render mode (can be overridden by CLI flag)
 RENDER_MODE="$DEFAULT_RENDER"
 
 show_thinking() {
@@ -79,16 +71,14 @@ show_thinking() {
     fi
 }
 
-# Clear thinking indicator (with minimum display time)
 clear_thinking() {
     if [ -t 1 ] && [ "$THINKING_START_TIME" -gt 0 ]; then
-        # Ensure it shows for at least 0.5 seconds
         local current_time=$(date +%s)
         local elapsed=$((current_time - THINKING_START_TIME))
         if [ "$elapsed" -lt 1 ]; then
             sleep 0.3
         fi
-        printf "\r\033[K"  # Clear line
+        printf "\r\033[K"
         THINKING_START_TIME=0
     fi
 }
@@ -102,7 +92,7 @@ show_banner() {
   \__,_|___/_|\_\
 
 ask v1.0.0
-"don't grep. don't awk. just ask"
+don't grep. don't awk. just ask
 
 EOF
 }
@@ -110,7 +100,7 @@ EOF
 show_help() {
     cat <<EOF
 $(echo -e "${CYAN}${BOLD}ask${NC}") - v${VERSION}
-"don't grep. don't awk. just ask"
+don't grep. don't awk. just ask
 
 $(echo -e "${YELLOW}USAGE:${NC}")
     ask [OPTIONS] [PROMPT]
@@ -215,7 +205,6 @@ $(echo -e "${DIM}For more information, visit: https://github.com/elias-ba/ask${N
 EOF
 }
 
-# Initialize directories
 init_config() {
     mkdir -p "$CONFIG_DIR" "$CACHE_DIR"
     [ ! -f "$HISTORY_FILE" ] && touch "$HISTORY_FILE"
@@ -227,19 +216,14 @@ init_config() {
 
 EOF
     
-    # Load keys from file if they exist
     load_keys
 }
 
-# Load API keys from config file
 load_keys() {
     if [ -f "$KEYS_FILE" ]; then
-        # Source the keys file if variables aren't already set
         while IFS='=' read -r key value; do
-            # Skip comments and empty lines
             [[ "$key" =~ ^#.*$ || -z "$key" ]] && continue
             
-            # Only set if not already in environment
             if [ -z "${!key}" ]; then
                 export "$key=$value"
             fi
@@ -247,7 +231,6 @@ load_keys() {
     fi
 }
 
-# Key management
 manage_keys() {
     local action=$1
     local provider=$2
@@ -274,7 +257,6 @@ manage_keys() {
                     ;;
             esac
             
-            # Prompt for key if not provided
             if [ -z "$key" ]; then
                 echo -e "${CYAN}Enter your ${provider} API key:${NC}"
                 read -rs key
@@ -286,17 +268,14 @@ manage_keys() {
                 return 1
             fi
             
-            # Remove old key if exists
             if [ -f "$KEYS_FILE" ]; then
                 sed -i.bak "/^${key_var}=/d" "$KEYS_FILE"
                 rm -f "${KEYS_FILE}.bak"
             fi
             
-            # Add new key
             echo "${key_var}=${key}" >> "$KEYS_FILE"
             chmod 600 "$KEYS_FILE"
             
-            # Export to current session
             export "${key_var}=${key}"
             
             echo -e "${GREEN}✓ ${provider} API key saved${NC}"
@@ -315,10 +294,8 @@ manage_keys() {
                     openrouter) key_var="OPENROUTER_API_KEY" ;;
                 esac
                 
-                # Check environment variable first
                 local key_value="${!key_var}"
                 
-                # If not in env, check file
                 if [ -z "$key_value" ] && [ -f "$KEYS_FILE" ]; then
                     key_value=$(grep "^${key_var}=" "$KEYS_FILE" 2>/dev/null | cut -d'=' -f2)
                 fi
@@ -326,7 +303,6 @@ manage_keys() {
                 if [ -n "$key_value" ]; then
                     local masked_key="${key_value:0:8}...${key_value: -4}"
                     local source="env"
-                    # Check if it's from file
                     if grep -q "^${key_var}=" "$KEYS_FILE" 2>/dev/null; then
                         source="file"
                     fi
@@ -361,13 +337,11 @@ manage_keys() {
                     ;;
             esac
             
-            # Remove from file
             if [ -f "$KEYS_FILE" ]; then
                 sed -i.bak "/^${key_var}=/d" "$KEYS_FILE"
                 rm -f "${KEYS_FILE}.bak"
             fi
             
-            # Unset from current session
             unset "$key_var"
             
             echo -e "${GREEN}✓ ${provider} API key removed${NC}"
@@ -389,7 +363,6 @@ manage_keys() {
     esac
 }
 
-# Check dependencies
 check_dependencies() {
     local missing=()
     for cmd in jq curl; do
@@ -405,7 +378,6 @@ check_dependencies() {
     fi
 }
 
-# Check API key
 check_api_key() {
     local provider=$1
     local key_var=""
@@ -440,7 +412,6 @@ check_api_key() {
     fi
 }
 
-# List models
 list_models() {
     local provider=$1
     echo -e "${CYAN}Available models for ${BOLD}${provider}${NC}:"
@@ -451,7 +422,6 @@ list_models() {
     done
 }
 
-# Gather context
 gather_context() {
     local level=${1:-auto}
     local context=""
@@ -484,25 +454,19 @@ gather_context() {
     echo "$context"
 }
 
-# Streaming handler
 handle_stream() {
     local provider=$1
     local buffer=""
     
     while IFS= read -r line; do
-        # Skip empty lines
         [[ -z "$line" ]] && continue
         
-        # Remove "data: " prefix
         line="${line#data: }"
         
-        # Skip [DONE] marker
         [[ "$line" == "[DONE]" ]] && break
         
-        # Skip if not valid JSON
         echo "$line" | jq empty 2>/dev/null || continue
         
-        # Parse based on provider
         case $provider in
             anthropic)
                 local type=$(echo "$line" | jq -r '.type // empty' 2>/dev/null)
@@ -524,7 +488,6 @@ handle_stream() {
     echo ""
 }
 
-# Make API call
 call_api() {
     local provider=$1
     local model=$2
@@ -537,12 +500,10 @@ call_api() {
     local api_url=$(get_api_url "$provider")
     local response=""
     
-    # Build messages array (Bash 3.x compatible)
     local messages_json="$CONVERSATION_JSON"
     [ -z "$messages_json" ] && messages_json='[]'
     messages_json=$(echo "$messages_json" | jq ". + [{\"role\": \"user\", \"content\": $(echo "$message" | jq -Rs .)}]")
     
-    # Show thinking indicator if interactive terminal
     if [ -t 1 ]; then
         show_thinking
     fi
@@ -564,7 +525,6 @@ call_api() {
                 }')
             
             if [ "$stream" = "true" ]; then
-                # Clear thinking indicator when stream starts
                 [ -t 1 ] && clear_thinking
                 curl -sN "$api_url" \
                     -H "Content-Type: application/json" \
@@ -577,7 +537,6 @@ call_api() {
                     -H "x-api-key: ${ANTHROPIC_API_KEY}" \
                     -H "anthropic-version: 2023-06-01" \
                     -d "$data")
-                # Clear thinking indicator
                 [ -t 1 ] && clear_thinking
                 echo "$response" | jq -r '.content[0].text'
             fi
@@ -607,7 +566,6 @@ call_api() {
                 }')
             
             if [ "$stream" = "true" ]; then
-                # Clear thinking indicator when stream starts
                 [ -t 1 ] && clear_thinking
                 curl -sN "$api_url" \
                     -H "Content-Type: application/json" \
@@ -618,7 +576,6 @@ call_api() {
                     -H "Content-Type: application/json" \
                     -H "$key_header" \
                     -d "$data")
-                # Clear thinking indicator
                 [ -t 1 ] && clear_thinking
                 echo "$response" | jq -r '.choices[0].message.content'
             fi
@@ -626,7 +583,6 @@ call_api() {
     esac
 }
 
-# Generate shell function
 generate_function() {
     local fn_name=$1
     local description=$2
@@ -646,7 +602,6 @@ Requirements:
     
     local code=$(call_api "$provider" "$model" "$prompt" false "You are an expert bash programmer. Generate clean, safe, well-commented bash functions." 1.0 2048)
     
-    # Validate basic syntax
     if ! echo "$code" | bash -n 2>/dev/null; then
         echo -e "${RED}Generated function has syntax errors${NC}"
         return 1
@@ -680,7 +635,6 @@ Requirements:
     esac
 }
 
-# Agent mode
 agent_mode() {
     local goal=$1
     local dry_run=$2
@@ -717,7 +671,6 @@ Guidelines:
     echo -e "${CYAN}Creating execution plan...${NC}\n"
     local plan=$(call_api "$provider" "$model" "$prompt" false "You are a bash automation expert. Always return valid JSON." 0.7 2048)
     
-    # Try to extract JSON from response
     plan=$(echo "$plan" | sed -n '/\[/,/\]/p')
     
     if ! echo "$plan" | jq empty 2>/dev/null; then
@@ -744,7 +697,6 @@ Guidelines:
         return 0
     fi
     
-    # Save plan to temp file to avoid pipe subshell issues
     local plan_file=$(mktemp)
     echo "$plan" | jq -c '.[]' > "$plan_file"
     
@@ -789,7 +741,6 @@ Guidelines:
     rm -f "$plan_file"
 }
 
-# Git commit helper
 git_commit_helper() {
     if ! git rev-parse --git-dir &>/dev/null; then
         echo -e "${RED}Not in a git repository${NC}"
@@ -815,7 +766,6 @@ $diff
     
     local msg=$(call_api "$DEFAULT_PROVIDER" "$DEFAULT_MODEL" "$prompt" false "You are a git expert. Generate concise, semantic commit messages in conventional commits format. Return ONLY the commit message, no explanation or markdown." 0.7 1024)
     
-    # Clean up the response (remove any markdown, quotes, or extra text)
     msg=$(echo "$msg" | sed 's/^[`"]*//g' | sed 's/[`"]*$//g' | head -1)
     
     if [ -z "$msg" ] || [ "$msg" = "null" ]; then
@@ -846,7 +796,6 @@ $diff
     esac
 }
 
-# Save/load history (Bash 3.x compatible)
 save_history() {
     echo "$CONVERSATION_JSON" > "$HISTORY_FILE"
     echo -e "${GREEN}✓ Conversation saved${NC}"
@@ -862,7 +811,6 @@ load_history() {
     fi
 }
 
-# Interactive mode
 interactive_mode() {
     local provider=$1
     local model=$2
@@ -922,29 +870,22 @@ interactive_mode() {
                 ;;
         esac
         
-        # Add context if enabled
         local full_prompt="$input"
         if [ "$context_level" != "none" ]; then
             local ctx=$(gather_context "$context_level")
             if [ -n "$ctx" ]; then
-                # Prepend context to the message
                 full_prompt="Context about my system:\n${ctx}\n\nQuestion: ${input}"
             fi
         fi
         
-        # Add to conversation (Bash 3.x compatible)
         [ -z "$CONVERSATION_JSON" ] && CONVERSATION_JSON='[]'
         CONVERSATION_JSON=$(echo "$CONVERSATION_JSON" | jq ". + [{\"role\":\"user\",\"content\":$(echo "$full_prompt" | jq -Rs .)}]")
         
-        # Call API and show response (no label, just content)
         if [ "$stream" = "true" ]; then
-            # Streaming: output goes directly to terminal
             call_api "$provider" "$model" "$full_prompt" "$stream" "" "" ""
             echo ""
-            # Add a simple confirmation to history (actual response was streamed)
             CONVERSATION_JSON=$(echo "$CONVERSATION_JSON" | jq ". + [{\"role\":\"assistant\",\"content\":\"[Response streamed]\"}]")
         else
-            # Non-streaming: capture and display
             local response=$(call_api "$provider" "$model" "$full_prompt" "$stream" "" "" "")
             if [ -n "$response" ]; then
                 echo "$response"
@@ -953,7 +894,6 @@ interactive_mode() {
             fi
         fi
         
-        # Trim history if too long
         local msg_count=$(echo "$CONVERSATION_JSON" | jq 'length')
         if [ "$msg_count" -gt $((MAX_HISTORY * 2)) ]; then
             CONVERSATION_JSON=$(echo "$CONVERSATION_JSON" | jq '.[2:]')
@@ -961,7 +901,6 @@ interactive_mode() {
     done
 }
 
-# Main
 main() {
     local provider="${ASK_PROVIDER:-$DEFAULT_PROVIDER}"
     local model="${ASK_MODEL:-$DEFAULT_MODEL}"
@@ -973,7 +912,6 @@ main() {
     local mode="chat"
     local prompt=""
     
-    # Parse arguments
     while [[ $# -gt 0 ]]; do
         case $1 in
             -p|--provider)
@@ -1050,7 +988,7 @@ main() {
                 ;;
             keys)
                 check_dependencies
-                init_config  # Load keys before managing them
+                init_config
                 shift
                 manage_keys "$@"
                 exit 0
@@ -1071,22 +1009,17 @@ main() {
     init_config
     check_api_key "$provider"
     
-    # Check for piped input
     local piped_input=""
     if [ ! -t 0 ]; then
-        # stdin is not a terminal, read piped input
         piped_input=$(cat)
     fi
     
-    # If we have piped input and a prompt, combine them
     if [ -n "$piped_input" ] && [ -n "$prompt" ]; then
         prompt="Input:\n\`\`\`\n${piped_input}\n\`\`\`\n\nQuestion: ${prompt}"
     elif [ -n "$piped_input" ] && [ -z "$prompt" ]; then
-        # Only piped input, no prompt
         prompt="$piped_input"
     fi
     
-    # Handle different modes
     case $mode in
         function)
             generate_function "$fn_name" "$fn_desc" "$provider" "$model"
@@ -1096,7 +1029,6 @@ main() {
             ;;
         chat)
             if [ -n "$prompt" ]; then
-                # One-shot mode - add context if enabled
                 if [ "$context_level" != "none" ]; then
                     local ctx=$(gather_context "$context_level")
                     if [ -n "$ctx" ]; then
@@ -1106,7 +1038,6 @@ main() {
                 call_api "$provider" "$model" "$prompt" "$stream" "$system_prompt" "$temperature" "$max_tokens"
                 echo ""
             else
-                # Interactive mode
                 interactive_mode "$provider" "$model" "$stream" "$context_level"
             fi
             ;;
