@@ -109,92 +109,109 @@ EOF
 
 show_help() {
     cat <<EOF
-${CYAN}${BOLD}ASK${NC} - ASK Shell Kernel v${VERSION}
+$(echo -e "${CYAN}${BOLD}ASK${NC}") - ASK Shell Kernel v${VERSION}
 A recursive acronym in the GNU tradition
 
-${YELLOW}USAGE:${NC}
+$(echo -e "${YELLOW}USAGE:${NC}")
     ask [OPTIONS] [PROMPT]
     ask [OPTIONS]              # Interactive mode
     
-${YELLOW}OPTIONS:${NC}
-    ${GREEN}-p, --provider${NC} PROVIDER    Provider: anthropic, openai, openrouter
+$(echo -e "${YELLOW}OPTIONS:${NC}")
+    $(echo -e "${GREEN}-p, --provider${NC}") PROVIDER    Provider: anthropic, openai, openrouter
                                   [default: anthropic]
-    ${GREEN}-m, --model${NC} MODEL         Model name [default: claude-sonnet-4-5]
-    ${GREEN}-t, --temperature${NC} TEMP    Temperature 0.0-2.0 [default: 1.0]
-    ${GREEN}-s, --stream${NC}              Enable streaming [default: on]
-    ${GREEN}-n, --no-stream${NC}           Disable streaming
-    ${GREEN}--system${NC} PROMPT           Custom system prompt
-    ${GREEN}--context${NC} [LEVEL]         Context level: min, auto, full [default: auto]
+    $(echo -e "${GREEN}-m, --model${NC}") MODEL         Model name [default: claude-sonnet-4-5]
+    $(echo -e "${GREEN}-t, --temperature${NC}") TEMP    Temperature 0.0-2.0 [default: 1.0]
+    $(echo -e "${GREEN}-s, --stream${NC}")              Enable streaming [default: on]
+    $(echo -e "${GREEN}-n, --no-stream${NC}")           Disable streaming
+    $(echo -e "${GREEN}--system${NC}") PROMPT           Custom system prompt
+    $(echo -e "${GREEN}--context${NC}") [LEVEL]         Context level: none, min, auto, full [default: auto]
     
-    ${GREEN}--agent${NC}                   Agent mode (execute commands)
-    ${GREEN}--dry-run${NC}                 Show plan without executing
-    ${GREEN}--fn${NC} NAME DESC            Generate shell function
-    ${GREEN}--tools${NC} LIST              Allowed tools for agent (curl,jq,git)
+    $(echo -e "${GREEN}--agent${NC}")                   Agent mode (execute commands)
+    $(echo -e "${GREEN}--dry-run${NC}")                 Show plan without executing
+    $(echo -e "${GREEN}--fn${NC}") NAME DESC            Generate shell function
+    $(echo -e "${GREEN}--tools${NC}") LIST              Allowed tools for agent (curl,jq,git)
     
-    ${GREEN}--index${NC}                   Index current project
-    ${GREEN}--save${NC}                    Save conversation history
-    ${GREEN}--load${NC}                    Load conversation history
-    ${GREEN}--clear${NC}                   Clear conversation
+    $(echo -e "${GREEN}--index${NC}")                   Index current project
+    $(echo -e "${GREEN}--save${NC}")                    Save conversation history
+    $(echo -e "${GREEN}--load${NC}")                    Load conversation history
+    $(echo -e "${GREEN}--clear${NC}")                   Clear conversation
     
-    ${GREEN}--list-models${NC}             List available models
-    ${GREEN}--multiline${NC}               Multi-line input mode (Ctrl+D to send)
-    ${GREEN}--json${NC}                    Output raw JSON
+    $(echo -e "${GREEN}--list-models${NC}")             List available models
+    $(echo -e "${GREEN}--multiline${NC}")               Multi-line input mode (Ctrl+D to send)
+    $(echo -e "${GREEN}--json${NC}")                    Output raw JSON
     
-    ${GREEN}keys${NC} <action>             Manage API keys
+    $(echo -e "${GREEN}keys${NC}") <action>             Manage API keys
       set <provider>         Set API key (prompted securely)
       list                   List configured keys
       remove <provider>      Remove API key
       path                   Show keys file location
     
-    ${GREEN}-v, --version${NC}             Show version
-    ${GREEN}-h, --help${NC}                Show this help
+    $(echo -e "${GREEN}-v, --version${NC}")             Show version
+    $(echo -e "${GREEN}-h, --help${NC}")                Show this help
 
-${YELLOW}ENVIRONMENT VARIABLES (OPTIONAL):${NC}
-    ${GREEN}ANTHROPIC_API_KEY${NC}         Anthropic API key (or use: ask keys set anthropic)
-    ${GREEN}OPENAI_API_KEY${NC}            OpenAI API key (or use: ask keys set openai)
-    ${GREEN}OPENROUTER_API_KEY${NC}        OpenRouter API key (or use: ask keys set openrouter)
-    ${GREEN}ASK_PROVIDER${NC}              Default provider
-    ${GREEN}ASK_MODEL${NC}                 Default model
+$(echo -e "${YELLOW}ENVIRONMENT VARIABLES (OPTIONAL):${NC}")
+    $(echo -e "${GREEN}ANTHROPIC_API_KEY${NC}")         Anthropic API key (or use: ask keys set anthropic)
+    $(echo -e "${GREEN}OPENAI_API_KEY${NC}")            OpenAI API key (or use: ask keys set openai)
+    $(echo -e "${GREEN}OPENROUTER_API_KEY${NC}")        OpenRouter API key (or use: ask keys set openrouter)
+    $(echo -e "${GREEN}ASK_PROVIDER${NC}")              Default provider
+    $(echo -e "${GREEN}ASK_MODEL${NC}")                 Default model
 
-${YELLOW}EXAMPLES:${NC}
+$(echo -e "${YELLOW}EXAMPLES:${NC}")
     # First time setup
-    ${DIM}ask keys set anthropic${NC}
+    $(echo -e "${DIM}ask keys set anthropic${NC}")
     
     # Quick questions
-    ${DIM}ask "find all TODO comments in this repo"${NC}
+    $(echo -e "${DIM}ask \"find all TODO comments in this repo\"${NC}")
     
-    # Agent mode
-    ${DIM}ask --agent "optimize all PNG files in ./images"${NC}
+    # Agent mode (with auto-approve)
+    $(echo -e "${DIM}ask --agent \"create test directory\"${NC}")
+    $(echo -e "${DIM}# Type 'a' to auto-approve low/medium risk commands${NC}")
     
     # Generate reusable functions
-    ${DIM}ask --fn parse_nginx "extract 500 errors from nginx logs"${NC}
+    $(echo -e "${DIM}ask --fn parse_nginx \"extract 500 errors from nginx logs\"${NC}")
     
     # Context-aware queries
-    ${DIM}git diff | ask "explain what changed and suggest improvements"${NC}
+    $(echo -e "${DIM}git diff | ask \"explain what changed and suggest improvements\"${NC}")
     
     # Git workflow helpers
-    ${DIM}ask commit     # Generate semantic commit message${NC}
-    ${DIM}ask pr-review  # Review current branch vs main${NC}
+    $(echo -e "${DIM}ask commit     # Generate semantic commit message${NC}")
+    $(echo -e "${DIM}ask pr-review  # Review current branch vs main${NC}")
     
     # Interactive chat
-    ${DIM}ask${NC}
+    $(echo -e "${DIM}ask${NC}")
 
-${YELLOW}INTERACTIVE COMMANDS:${NC}
-    ${GREEN}/clear${NC}              Clear conversation
-    ${GREEN}/save${NC}               Save conversation
-    ${GREEN}/load${NC}               Load conversation  
-    ${GREEN}/models${NC}             List available models
-    ${GREEN}/switch${NC} [P] [M]    Switch provider/model
-    ${GREEN}/context${NC} [LEVEL]   Set context level
-    ${GREEN}/help${NC}               Show help
-    ${GREEN}/exit${NC} or ${GREEN}/quit${NC}    Exit
+$(echo -e "${YELLOW}INTERACTIVE COMMANDS:${NC}")
+    $(echo -e "${GREEN}/clear${NC}")              Clear conversation
+    $(echo -e "${GREEN}/save${NC}")               Save conversation
+    $(echo -e "${GREEN}/load${NC}")               Load conversation  
+    $(echo -e "${GREEN}/models${NC}")             List available models
+    $(echo -e "${GREEN}/switch${NC}") [P] [M]    Switch provider/model
+    $(echo -e "${GREEN}/context${NC}") [LEVEL]   Set context level
+    $(echo -e "${GREEN}/help${NC}")               Show help
+    $(echo -e "${GREEN}/exit${NC}") or $(echo -e "${GREEN}/quit${NC}")    Exit
 
-${YELLOW}SPECIAL MODES:${NC}
-    ${GREEN}ask commit${NC}          Generate git commit message from staged changes
-    ${GREEN}ask pr-review${NC}       Review current branch changes
-    ${GREEN}ask diagnose${NC}        Diagnose last command failure
+$(echo -e "${YELLOW}AGENT MODE:${NC}")
+    $(echo -e "${GREEN}y${NC}") - Ask for confirmation on each medium/high risk command
+    $(echo -e "${GREEN}a${NC}") - Auto-approve low/medium risk (recommended)
+    $(echo -e "${GREEN}n${NC}") - Cancel execution
+    
+    Risk levels:
+    $(echo -e "${DIM}Low${NC}")    - Read-only (ls, cat, grep) - Auto-execute
+    $(echo -e "${DIM}Medium${NC}") - Create/modify (mkdir, touch) - Confirm or auto with 'a'
+    $(echo -e "${DIM}High${NC}")   - Delete/destroy (rm, dd) - Always confirm
 
-${DIM}For more information, visit: https://github.com/yourusername/ask${NC}
+$(echo -e "${YELLOW}CONTEXT LEVELS:${NC}")
+    $(echo -e "${GREEN}none${NC}") - No context
+    $(echo -e "${GREEN}min${NC}")  - Directory + date
+    $(echo -e "${GREEN}auto${NC}") - + system info + git status (default)
+    $(echo -e "${GREEN}full${NC}") - + shell + user + last command
+
+$(echo -e "${YELLOW}SPECIAL MODES:${NC}")
+    $(echo -e "${GREEN}ask commit${NC}")          Generate git commit message from staged changes
+    $(echo -e "${GREEN}ask pr-review${NC}")       Review current branch changes
+    $(echo -e "${GREEN}ask diagnose${NC}")        Diagnose last command failure
+
+$(echo -e "${DIM}For more information, visit: https://github.com/yourusername/ask${NC}")
 EOF
 }
 
@@ -298,9 +315,22 @@ manage_keys() {
                     openrouter) key_var="OPENROUTER_API_KEY" ;;
                 esac
                 
-                if [ -n "${!key_var}" ]; then
-                    local masked_key="${!key_var:0:8}...${!key_var: -4}"
-                    echo -e "${GREEN}✓${NC} ${provider_name}: ${masked_key}"
+                # Check environment variable first
+                local key_value="${!key_var}"
+                
+                # If not in env, check file
+                if [ -z "$key_value" ] && [ -f "$KEYS_FILE" ]; then
+                    key_value=$(grep "^${key_var}=" "$KEYS_FILE" 2>/dev/null | cut -d'=' -f2)
+                fi
+                
+                if [ -n "$key_value" ]; then
+                    local masked_key="${key_value:0:8}...${key_value: -4}"
+                    local source="env"
+                    # Check if it's from file
+                    if grep -q "^${key_var}=" "$KEYS_FILE" 2>/dev/null; then
+                        source="file"
+                    fi
+                    echo -e "${GREEN}✓${NC} ${provider_name}: ${masked_key} ${DIM}(${source})${NC}"
                     found=true
                 else
                     echo -e "${DIM}○${NC} ${provider_name}: ${DIM}not set${NC}"
@@ -679,8 +709,10 @@ Return a JSON array of steps with this structure:
 Guidelines:
 - Use only safe, standard unix commands
 - Each command should be independently executable
-- Mark anything that modifies files as 'high' risk
-- Mark read-only operations as 'low' risk"
+- Mark anything that DELETES or DESTROYS data as 'high' risk
+- Mark file creation/modification as 'medium' risk
+- Mark read-only operations as 'low' risk
+- Be conservative: when in doubt, mark as higher risk"
     
     echo -e "${CYAN}Creating execution plan...${NC}\n"
     local plan=$(call_api "$provider" "$model" "$prompt" false "You are a bash automation expert. Always return valid JSON." 0.7 2048)
@@ -701,38 +733,60 @@ Guidelines:
         return 0
     fi
     
-    echo -e "${YELLOW}Execute this plan? (y/n)${NC}"
-    read -r confirm
-    [[ ! $confirm =~ ^[Yy]$ ]] && return 0
+    echo -e "${YELLOW}Execute this plan? (y/n/a for auto-approve medium+low)${NC}"
+    read -r confirm </dev/tty
     
-    echo "$plan" | jq -c '.[]' | while read -r step; do
+    local auto_approve=false
+    if [[ $confirm =~ ^[Aa]$ ]]; then
+        auto_approve=true
+        echo -e "${GREEN}✓ Auto-approving low and medium risk commands${NC}\n"
+    elif [[ ! $confirm =~ ^[Yy]$ ]]; then
+        return 0
+    fi
+    
+    # Save plan to temp file to avoid pipe subshell issues
+    local plan_file=$(mktemp)
+    echo "$plan" | jq -c '.[]' > "$plan_file"
+    
+    while IFS= read -r step; do
         local cmd=$(echo "$step" | jq -r '.command')
         local desc=$(echo "$step" | jq -r '.description')
         local risk=$(echo "$step" | jq -r '.risk')
         
         echo -e "\n${CYAN}→ $desc${NC}"
+        echo -e "${DIM}$cmd${NC}"
+        
+        local should_execute=true
         
         if [ "$risk" = "high" ]; then
-            echo -e "${RED}⚠️  High risk command:${NC} $cmd"
+            echo -e "${RED}⚠️  High risk command - requires confirmation${NC}"
             echo -e "${YELLOW}Execute? (y/n)${NC}"
-            read -r confirm
-            [[ ! $confirm =~ ^[Yy]$ ]] && continue
-        else
-            echo -e "${DIM}$cmd${NC}"
+            read -r confirm </dev/tty
+            [[ ! $confirm =~ ^[Yy]$ ]] && should_execute=false
+        elif [ "$risk" = "medium" ] && [ "$auto_approve" = false ]; then
+            echo -e "${YELLOW}⚠️  Medium risk - confirm? (y/n)${NC}"
+            read -r confirm </dev/tty
+            [[ ! $confirm =~ ^[Yy]$ ]] && should_execute=false
         fi
         
-        eval "$cmd"
-        local exit_code=$?
-        
-        if [ $exit_code -eq 0 ]; then
-            echo -e "${GREEN}✓ Success${NC}"
+        if [ "$should_execute" = true ]; then
+            eval "$cmd"
+            local exit_code=$?
+            
+            if [ $exit_code -eq 0 ]; then
+                echo -e "${GREEN}✓ Success${NC}"
+            else
+                echo -e "${RED}✗ Failed (exit code: $exit_code)${NC}"
+                echo -e "${YELLOW}Continue with next step? (y/n)${NC}"
+                read -r confirm </dev/tty
+                [[ ! $confirm =~ ^[Yy]$ ]] && break
+            fi
         else
-            echo -e "${RED}✗ Failed (exit code: $exit_code)${NC}"
-            echo -e "${YELLOW}Continue? (y/n)${NC}"
-            read -r confirm
-            [[ ! $confirm =~ ^[Yy]$ ]] && break
+            echo -e "${YELLOW}⊘ Skipped${NC}"
         fi
-    done
+    done < "$plan_file"
+    
+    rm -f "$plan_file"
 }
 
 # Git commit helper
@@ -750,14 +804,24 @@ git_commit_helper() {
     
     echo -e "${CYAN}Analyzing staged changes...${NC}\n"
     
-    local prompt="Generate a semantic commit message for these changes. Follow conventional commits format: type(scope): description
+    local prompt="Generate a concise semantic commit message for these changes. Follow conventional commits format: type(scope): description
+
+Only return the commit message, nothing else.
 
 Changes:
+\`\`\`
 $diff
-
-Return ONLY the commit message, no explanation."
+\`\`\`"
     
-    local msg=$(call_api "$DEFAULT_PROVIDER" "$DEFAULT_MODEL" "$prompt" false "You are a git expert. Generate concise, semantic commit messages." 0.7 1024)
+    local msg=$(call_api "$DEFAULT_PROVIDER" "$DEFAULT_MODEL" "$prompt" false "You are a git expert. Generate concise, semantic commit messages in conventional commits format. Return ONLY the commit message, no explanation or markdown." 0.7 1024)
+    
+    # Clean up the response (remove any markdown, quotes, or extra text)
+    msg=$(echo "$msg" | sed 's/^[`"]*//g' | sed 's/[`"]*$//g' | head -1)
+    
+    if [ -z "$msg" ] || [ "$msg" = "null" ]; then
+        echo -e "${RED}Failed to generate commit message${NC}"
+        return 1
+    fi
     
     echo -e "${GREEN}Suggested commit message:${NC}"
     echo -e "${BOLD}$msg${NC}\n"
@@ -862,23 +926,26 @@ interactive_mode() {
         local full_prompt="$input"
         if [ "$context_level" != "none" ]; then
             local ctx=$(gather_context "$context_level")
-            full_prompt="Context:\n$ctx\n\nQuestion: $input"
+            if [ -n "$ctx" ]; then
+                # Prepend context to the message
+                full_prompt="Context about my system:\n${ctx}\n\nQuestion: ${input}"
+            fi
         fi
         
         # Add to conversation (Bash 3.x compatible)
         [ -z "$CONVERSATION_JSON" ] && CONVERSATION_JSON='[]'
-        CONVERSATION_JSON=$(echo "$CONVERSATION_JSON" | jq ". + [{\"role\":\"user\",\"content\":$(echo "$input" | jq -Rs .)}]")
+        CONVERSATION_JSON=$(echo "$CONVERSATION_JSON" | jq ". + [{\"role\":\"user\",\"content\":$(echo "$full_prompt" | jq -Rs .)}]")
         
         # Call API and show response (no label, just content)
         if [ "$stream" = "true" ]; then
             # Streaming: output goes directly to terminal
-            call_api "$provider" "$model" "$input" "$stream" "" "" ""
+            call_api "$provider" "$model" "$full_prompt" "$stream" "" "" ""
             echo ""
             # Add a simple confirmation to history (actual response was streamed)
             CONVERSATION_JSON=$(echo "$CONVERSATION_JSON" | jq ". + [{\"role\":\"assistant\",\"content\":\"[Response streamed]\"}]")
         else
             # Non-streaming: capture and display
-            local response=$(call_api "$provider" "$model" "$input" "$stream" "" "" "")
+            local response=$(call_api "$provider" "$model" "$full_prompt" "$stream" "" "" "")
             if [ -n "$response" ]; then
                 echo "$response"
                 echo ""
@@ -982,6 +1049,8 @@ main() {
                 exit 0
                 ;;
             keys)
+                check_dependencies
+                init_config  # Load keys before managing them
                 shift
                 manage_keys "$@"
                 exit 0
@@ -1027,7 +1096,13 @@ main() {
             ;;
         chat)
             if [ -n "$prompt" ]; then
-                # One-shot mode - just show response, no label
+                # One-shot mode - add context if enabled
+                if [ "$context_level" != "none" ]; then
+                    local ctx=$(gather_context "$context_level")
+                    if [ -n "$ctx" ]; then
+                        prompt="Context about my system:\n${ctx}\n\nQuestion: ${prompt}"
+                    fi
+                fi
                 call_api "$provider" "$model" "$prompt" "$stream" "$system_prompt" "$temperature" "$max_tokens"
                 echo ""
             else
