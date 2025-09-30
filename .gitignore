@@ -1,0 +1,22 @@
+# ASK specific
+keys.env
+*.log
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Linux
+*~
+
+# Temp files
+*.tmp
+*.swp
+*.bak
+
+# Editor
+.vscode/
+.idea/
+*.sublime-*

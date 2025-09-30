@@ -1,0 +1,1041 @@
+#!/usr/bin/env bash
+
+# ASK - ASK Shell Kernel
+# A recursive acronym in the GNU tradition
+# "Intelligence, one command away"
+# Compatible with Bash 3.x+
+
+VERSION="1.0.0"
+AUTHOR="AI Shell Kernel Project"
+
+# Check Bash version (need 3.x+)
+if [ -z "$BASH_VERSION" ]; then
+    echo "Error: This script requires Bash"
+    exit 1
+fi
+
+BASH_MAJOR_VERSION="${BASH_VERSION%%.*}"
+if [ "$BASH_MAJOR_VERSION" -lt 3 ]; then
+    echo "Error: This script requires Bash 3.x or higher"
+    echo "Current version: $BASH_VERSION"
+    exit 1
+fi
+
+# Configuration
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/ask"
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/ask"
+HISTORY_FILE="$CACHE_DIR/history.jsonl"
+FUNCTIONS_FILE="$CONFIG_DIR/functions.sh"
+CONTEXT_FILE="$CACHE_DIR/context.json"
+KEYS_FILE="$CONFIG_DIR/keys.env"
+
+# Defaults
+DEFAULT_PROVIDER="anthropic"
+DEFAULT_MODEL="claude-sonnet-4-5-20250929"
+DEFAULT_TEMPERATURE="1.0"
+DEFAULT_MAX_TOKENS="4096"
+STREAM_ENABLED=true
+MAX_HISTORY=100
+
+# Model mappings (Bash 3.x compatible)
+get_models() {
+    local provider=$1
+    case $provider in
+        anthropic) echo "claude-sonnet-4-5-20250929,claude-opus-4-1-20250514,claude-4-opus-20250514" ;;
+        openai) echo "gpt-4o,gpt-4o-mini,gpt-4-turbo,o1,o1-mini" ;;
+        openrouter) echo "anthropic/claude-sonnet-4-5,openai/gpt-4o,google/gemini-2.0-flash-exp" ;;
+    esac
+}
+
+get_api_url() {
+    local provider=$1
+    case $provider in
+        anthropic) echo "https://api.anthropic.com/v1/messages" ;;
+        openai) echo "https://api.openai.com/v1/chat/completions" ;;
+        openrouter) echo "https://openrouter.ai/api/v1/chat/completions" ;;
+    esac
+}
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+MAGENTA='\033[0;35m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+DIM='\033[2m'
+NC='\033[0m'
+
+# Conversation state (Bash 3.x compatible - using indexed array)
+CONVERSATION_JSON=""
+
+# Current render mode (can be overridden by CLI flag)
+RENDER_MODE="$DEFAULT_RENDER"
+
+show_thinking() {
+    if [ -t 1 ]; then
+        THINKING_START_TIME=$(date +%s)
+        echo -ne "${CYAN}Thinking...${NC}"
+    fi
+}
+
+# Clear thinking indicator (with minimum display time)
+clear_thinking() {
+    if [ -t 1 ] && [ "$THINKING_START_TIME" -gt 0 ]; then
+        # Ensure it shows for at least 0.5 seconds
+        local current_time=$(date +%s)
+        local elapsed=$((current_time - THINKING_START_TIME))
+        if [ "$elapsed" -lt 1 ]; then
+            sleep 0.3
+        fi
+        printf "\r\033[K"  # Clear line
+        THINKING_START_TIME=0
+    fi
+}
+
+show_banner() {
+    cat <<'EOF'
+   ___   _____ _  __
+  / _ | / __/ |/ /
+ / __ |_\ \|   / 
+/_/ |_/___/_/|_|  
+                  
+ASK Shell Kernel v1.0.0
+"Intelligence, one command away"
+
+EOF
+}
+
+show_help() {
+    cat <<EOF
+${CYAN}${BOLD}ASK${NC} - ASK Shell Kernel v${VERSION}
+A recursive acronym in the GNU tradition
+
+${YELLOW}USAGE:${NC}
+    ask [OPTIONS] [PROMPT]
+    ask [OPTIONS]              # Interactive mode
+    
+${YELLOW}OPTIONS:${NC}
+    ${GREEN}-p, --provider${NC} PROVIDER    Provider: anthropic, openai, openrouter
+                                  [default: anthropic]
+    ${GREEN}-m, --model${NC} MODEL         Model name [default: claude-sonnet-4-5]
+    ${GREEN}-t, --temperature${NC} TEMP    Temperature 0.0-2.0 [default: 1.0]
+    ${GREEN}-s, --stream${NC}              Enable streaming [default: on]
+    ${GREEN}-n, --no-stream${NC}           Disable streaming
+    ${GREEN}--system${NC} PROMPT           Custom system prompt
+    ${GREEN}--context${NC} [LEVEL]         Context level: min, auto, full [default: auto]
+    
+    ${GREEN}--agent${NC}                   Agent mode (execute commands)
+    ${GREEN}--dry-run${NC}                 Show plan without executing
+    ${GREEN}--fn${NC} NAME DESC            Generate shell function
+    ${GREEN}--tools${NC} LIST              Allowed tools for agent (curl,jq,git)
+    
+    ${GREEN}--index${NC}                   Index current project
+    ${GREEN}--save${NC}                    Save conversation history
+    ${GREEN}--load${NC}                    Load conversation history
+    ${GREEN}--clear${NC}                   Clear conversation
+    
+    ${GREEN}--list-models${NC}             List available models
+    ${GREEN}--multiline${NC}               Multi-line input mode (Ctrl+D to send)
+    ${GREEN}--json${NC}                    Output raw JSON
+    
+    ${GREEN}keys${NC} <action>             Manage API keys
+      set <provider>         Set API key (prompted securely)
+      list                   List configured keys
+      remove <provider>      Remove API key
+      path                   Show keys file location
+    
+    ${GREEN}-v, --version${NC}             Show version
+    ${GREEN}-h, --help${NC}                Show this help
+
+${YELLOW}ENVIRONMENT VARIABLES (OPTIONAL):${NC}
+    ${GREEN}ANTHROPIC_API_KEY${NC}         Anthropic API key (or use: ask keys set anthropic)
+    ${GREEN}OPENAI_API_KEY${NC}            OpenAI API key (or use: ask keys set openai)
+    ${GREEN}OPENROUTER_API_KEY${NC}        OpenRouter API key (or use: ask keys set openrouter)
+    ${GREEN}ASK_PROVIDER${NC}              Default provider
+    ${GREEN}ASK_MODEL${NC}                 Default model
+
+${YELLOW}EXAMPLES:${NC}
+    # First time setup
+    ${DIM}ask keys set anthropic${NC}
+    
+    # Quick questions
+    ${DIM}ask "find all TODO comments in this repo"${NC}
+    
+    # Agent mode
+    ${DIM}ask --agent "optimize all PNG files in ./images"${NC}
+    
+    # Generate reusable functions
+    ${DIM}ask --fn parse_nginx "extract 500 errors from nginx logs"${NC}
+    
+    # Context-aware queries
+    ${DIM}git diff | ask "explain what changed and suggest improvements"${NC}
+    
+    # Git workflow helpers
+    ${DIM}ask commit     # Generate semantic commit message${NC}
+    ${DIM}ask pr-review  # Review current branch vs main${NC}
+    
+    # Interactive chat
+    ${DIM}ask${NC}
+
+${YELLOW}INTERACTIVE COMMANDS:${NC}
+    ${GREEN}/clear${NC}              Clear conversation
+    ${GREEN}/save${NC}               Save conversation
+    ${GREEN}/load${NC}               Load conversation  
+    ${GREEN}/models${NC}             List available models
+    ${GREEN}/switch${NC} [P] [M]    Switch provider/model
+    ${GREEN}/context${NC} [LEVEL]   Set context level
+    ${GREEN}/help${NC}               Show help
+    ${GREEN}/exit${NC} or ${GREEN}/quit${NC}    Exit
+
+${YELLOW}SPECIAL MODES:${NC}
+    ${GREEN}ask commit${NC}          Generate git commit message from staged changes
+    ${GREEN}ask pr-review${NC}       Review current branch changes
+    ${GREEN}ask diagnose${NC}        Diagnose last command failure
+
+${DIM}For more information, visit: https://github.com/yourusername/ask${NC}
+EOF
+}
+
+# Initialize directories
+init_config() {
+    mkdir -p "$CONFIG_DIR" "$CACHE_DIR"
+    [ ! -f "$HISTORY_FILE" ] && touch "$HISTORY_FILE"
+    [ ! -f "$KEYS_FILE" ] && touch "$KEYS_FILE" && chmod 600 "$KEYS_FILE"
+    [ ! -f "$FUNCTIONS_FILE" ] && cat > "$FUNCTIONS_FILE" <<'EOF'
+# ASK Generated Functions
+# Source this file: source ~/.config/ask/functions.sh
+# Or add to your ~/.bashrc: source ~/.config/ask/functions.sh
+
+EOF
+    
+    # Load keys from file if they exist
+    load_keys
+}
+
+# Load API keys from config file
+load_keys() {
+    if [ -f "$KEYS_FILE" ]; then
+        # Source the keys file if variables aren't already set
+        while IFS='=' read -r key value; do
+            # Skip comments and empty lines
+            [[ "$key" =~ ^#.*$ || -z "$key" ]] && continue
+            
+            # Only set if not already in environment
+            if [ -z "${!key}" ]; then
+                export "$key=$value"
+            fi
+        done < "$KEYS_FILE"
+    fi
+}
+
+# Key management
+manage_keys() {
+    local action=$1
+    local provider=$2
+    local key=$3
+    
+    case $action in
+        set)
+            if [ -z "$provider" ]; then
+                echo -e "${RED}Error: Provider required${NC}"
+                echo "Usage: ask keys set <provider>"
+                echo "Providers: anthropic, openai, openrouter"
+                return 1
+            fi
+            
+            local key_var=""
+            case $provider in
+                anthropic) key_var="ANTHROPIC_API_KEY" ;;
+                openai) key_var="OPENAI_API_KEY" ;;
+                openrouter) key_var="OPENROUTER_API_KEY" ;;
+                *)
+                    echo -e "${RED}Unknown provider: $provider${NC}"
+                    echo "Valid providers: anthropic, openai, openrouter"
+                    return 1
+                    ;;
+            esac
+            
+            # Prompt for key if not provided
+            if [ -z "$key" ]; then
+                echo -e "${CYAN}Enter your ${provider} API key:${NC}"
+                read -rs key
+                echo ""
+            fi
+            
+            if [ -z "$key" ]; then
+                echo -e "${RED}Error: No key provided${NC}"
+                return 1
+            fi
+            
+            # Remove old key if exists
+            if [ -f "$KEYS_FILE" ]; then
+                sed -i.bak "/^${key_var}=/d" "$KEYS_FILE"
+                rm -f "${KEYS_FILE}.bak"
+            fi
+            
+            # Add new key
+            echo "${key_var}=${key}" >> "$KEYS_FILE"
+            chmod 600 "$KEYS_FILE"
+            
+            # Export to current session
+            export "${key_var}=${key}"
+            
+            echo -e "${GREEN}✓ ${provider} API key saved${NC}"
+            echo -e "${DIM}Stored in: $KEYS_FILE${NC}"
+            ;;
+            
+        list)
+            echo -e "${CYAN}${BOLD}Configured API Keys:${NC}\n"
+            
+            local found=false
+            for provider_name in anthropic openai openrouter; do
+                local key_var=""
+                case $provider_name in
+                    anthropic) key_var="ANTHROPIC_API_KEY" ;;
+                    openai) key_var="OPENAI_API_KEY" ;;
+                    openrouter) key_var="OPENROUTER_API_KEY" ;;
+                esac
+                
+                if [ -n "${!key_var}" ]; then
+                    local masked_key="${!key_var:0:8}...${!key_var: -4}"
+                    echo -e "${GREEN}✓${NC} ${provider_name}: ${masked_key}"
+                    found=true
+                else
+                    echo -e "${DIM}○${NC} ${provider_name}: ${DIM}not set${NC}"
+                fi
+            done
+            
+            if [ "$found" = false ]; then
+                echo -e "\n${YELLOW}No API keys configured${NC}"
+                echo -e "Set a key with: ${CYAN}ask keys set <provider>${NC}"
+            fi
+            ;;
+            
+        remove)
+            if [ -z "$provider" ]; then
+                echo -e "${RED}Error: Provider required${NC}"
+                echo "Usage: ask keys remove <provider>"
+                return 1
+            fi
+            
+            local key_var=""
+            case $provider in
+                anthropic) key_var="ANTHROPIC_API_KEY" ;;
+                openai) key_var="OPENAI_API_KEY" ;;
+                openrouter) key_var="OPENROUTER_API_KEY" ;;
+                *)
+                    echo -e "${RED}Unknown provider: $provider${NC}"
+                    return 1
+                    ;;
+            esac
+            
+            # Remove from file
+            if [ -f "$KEYS_FILE" ]; then
+                sed -i.bak "/^${key_var}=/d" "$KEYS_FILE"
+                rm -f "${KEYS_FILE}.bak"
+            fi
+            
+            # Unset from current session
+            unset "$key_var"
+            
+            echo -e "${GREEN}✓ ${provider} API key removed${NC}"
+            ;;
+            
+        path)
+            echo "$KEYS_FILE"
+            ;;
+            
+        *)
+            echo -e "${YELLOW}Usage:${NC}"
+            echo "  ask keys set <provider>     Set API key for provider"
+            echo "  ask keys list               List configured keys"
+            echo "  ask keys remove <provider>  Remove API key"
+            echo "  ask keys path               Show keys file location"
+            echo ""
+            echo -e "${YELLOW}Providers:${NC} anthropic, openai, openrouter"
+            ;;
+    esac
+}
+
+# Check dependencies
+check_dependencies() {
+    local missing=()
+    for cmd in jq curl; do
+        if ! command -v "$cmd" &>/dev/null; then
+            missing+=("$cmd")
+        fi
+    done
+    
+    if [ ${#missing[@]} -gt 0 ]; then
+        echo -e "${RED}Error: Missing dependencies: ${missing[*]}${NC}"
+        echo "Install with: brew install ${missing[*]} (or apt-get/yum/pacman)"
+        exit 1
+    fi
+}
+
+# Check API key
+check_api_key() {
+    local provider=$1
+    local key_var=""
+    
+    case $provider in
+        anthropic) key_var="ANTHROPIC_API_KEY" ;;
+        openai) key_var="OPENAI_API_KEY" ;;
+        openrouter) key_var="OPENROUTER_API_KEY" ;;
+    esac
+    
+    if [ -z "${!key_var}" ]; then
+        echo -e "${RED}Error: $key_var not set${NC}\n"
+        echo -e "${BOLD}Set up your API key:${NC}"
+        echo -e "  ${CYAN}ask keys set $provider${NC}"
+        echo -e ""
+        echo -e "${BOLD}Or use environment variable:${NC}"
+        echo -e "  ${CYAN}export $key_var='your-key-here'${NC}"
+        echo -e ""
+        echo -e "${BOLD}Get an API key:${NC}"
+        case $provider in
+            anthropic)
+                echo -e "  ${DIM}https://console.anthropic.com/${NC}"
+                ;;
+            openai)
+                echo -e "  ${DIM}https://platform.openai.com/api-keys${NC}"
+                ;;
+            openrouter)
+                echo -e "  ${DIM}https://openrouter.ai/keys${NC}"
+                ;;
+        esac
+        exit 1
+    fi
+}
+
+# List models
+list_models() {
+    local provider=$1
+    echo -e "${CYAN}Available models for ${BOLD}${provider}${NC}:"
+    local models=$(get_models "$provider")
+    local IFS=','
+    for model in $models; do
+        echo -e "  ${GREEN}→${NC} $model"
+    done
+}
+
+# Gather context
+gather_context() {
+    local level=${1:-auto}
+    local context=""
+    
+    case $level in
+        min)
+            context="Working directory: $(pwd)\n"
+            context+="Date: $(date '+%Y-%m-%d %H:%M:%S')\n"
+            ;;
+        auto)
+            context="System: $(uname -s) $(uname -m)\n"
+            context+="Working directory: $(pwd)\n"
+            context+="Date: $(date '+%Y-%m-%d %H:%M:%S')\n"
+            
+            if git rev-parse --git-dir &>/dev/null; then
+                context+="Git branch: $(git branch --show-current 2>/dev/null)\n"
+                local status=$(git status --short 2>/dev/null | head -5)
+                [ -n "$status" ] && context+="Git status:\n$status\n"
+            fi
+            ;;
+        full)
+            context=$(gather_context auto)
+            context+="Shell: $SHELL\n"
+            context+="User: $USER\n"
+            local last_cmd=$(fc -ln -1 2>/dev/null | sed 's/^[[:space:]]*//')
+            [ -n "$last_cmd" ] && context+="Last command: $last_cmd\n"
+            ;;
+    esac
+    
+    echo "$context"
+}
+
+# Streaming handler
+handle_stream() {
+    local provider=$1
+    local buffer=""
+    
+    while IFS= read -r line; do
+        # Skip empty lines
+        [[ -z "$line" ]] && continue
+        
+        # Remove "data: " prefix
+        line="${line#data: }"
+        
+        # Skip [DONE] marker
+        [[ "$line" == "[DONE]" ]] && break
+        
+        # Skip if not valid JSON
+        echo "$line" | jq empty 2>/dev/null || continue
+        
+        # Parse based on provider
+        case $provider in
+            anthropic)
+                local type=$(echo "$line" | jq -r '.type // empty' 2>/dev/null)
+                if [[ "$type" == "content_block_delta" ]]; then
+                    local text=$(echo "$line" | jq -r '.delta.text // empty' 2>/dev/null)
+                    if [[ -n "$text" && "$text" != "null" ]]; then
+                        printf "%s" "$text"
+                    fi
+                fi
+                ;;
+            openai|openrouter)
+                local content=$(echo "$line" | jq -r '.choices[0].delta.content // empty' 2>/dev/null)
+                if [[ -n "$content" && "$content" != "null" ]]; then
+                    printf "%s" "$content"
+                fi
+                ;;
+        esac
+    done
+    echo ""
+}
+
+# Make API call
+call_api() {
+    local provider=$1
+    local model=$2
+    local message=$3
+    local stream=$4
+    local system_prompt=${5:-"You are a helpful AI assistant for the command line. Provide concise, accurate answers. When writing code or commands, ensure they are correct and safe."}
+    local temperature=${6:-1.0}
+    local max_tokens=${7:-4096}
+    
+    local api_url=$(get_api_url "$provider")
+    local response=""
+    
+    # Build messages array (Bash 3.x compatible)
+    local messages_json="$CONVERSATION_JSON"
+    [ -z "$messages_json" ] && messages_json='[]'
+    messages_json=$(echo "$messages_json" | jq ". + [{\"role\": \"user\", \"content\": $(echo "$message" | jq -Rs .)}]")
+    
+    # Show thinking indicator if interactive terminal
+    if [ -t 1 ]; then
+        show_thinking
+    fi
+    
+    case $provider in
+        anthropic)
+            local data=$(jq -n \
+                --arg model "$model" \
+                --argjson messages "$messages_json" \
+                --argjson stream "$stream" \
+                --arg system "$system_prompt" \
+                --argjson max_tokens "$max_tokens" \
+                '{
+                    model: $model,
+                    messages: $messages,
+                    stream: $stream,
+                    system: $system,
+                    max_tokens: $max_tokens
+                }')
+            
+            if [ "$stream" = "true" ]; then
+                # Clear thinking indicator when stream starts
+                [ -t 1 ] && clear_thinking
+                curl -sN "$api_url" \
+                    -H "Content-Type: application/json" \
+                    -H "x-api-key: ${ANTHROPIC_API_KEY}" \
+                    -H "anthropic-version: 2023-06-01" \
+                    -d "$data" | handle_stream "$provider"
+            else
+                response=$(curl -s "$api_url" \
+                    -H "Content-Type: application/json" \
+                    -H "x-api-key: ${ANTHROPIC_API_KEY}" \
+                    -H "anthropic-version: 2023-06-01" \
+                    -d "$data")
+                # Clear thinking indicator
+                [ -t 1 ] && clear_thinking
+                echo "$response" | jq -r '.content[0].text'
+            fi
+            ;;
+            
+        openai|openrouter)
+            local key_header=""
+            [ "$provider" = "openai" ] && key_header="Authorization: Bearer ${OPENAI_API_KEY}"
+            [ "$provider" = "openrouter" ] && key_header="Authorization: Bearer ${OPENROUTER_API_KEY}"
+            
+            if [ -n "$system_prompt" ]; then
+                messages_json=$(echo "$messages_json" | jq "[{\"role\": \"system\", \"content\": \"$system_prompt\"}] + .")
+            fi
+            
+            local data=$(jq -n \
+                --arg model "$model" \
+                --argjson messages "$messages_json" \
+                --argjson stream "$stream" \
+                --argjson temperature "$temperature" \
+                --argjson max_tokens "$max_tokens" \
+                '{
+                    model: $model,
+                    messages: $messages,
+                    stream: $stream,
+                    temperature: $temperature,
+                    max_tokens: $max_tokens
+                }')
+            
+            if [ "$stream" = "true" ]; then
+                # Clear thinking indicator when stream starts
+                [ -t 1 ] && clear_thinking
+                curl -sN "$api_url" \
+                    -H "Content-Type: application/json" \
+                    -H "$key_header" \
+                    -d "$data" | handle_stream "$provider"
+            else
+                response=$(curl -s "$api_url" \
+                    -H "Content-Type: application/json" \
+                    -H "$key_header" \
+                    -d "$data")
+                # Clear thinking indicator
+                [ -t 1 ] && clear_thinking
+                echo "$response" | jq -r '.choices[0].message.content'
+            fi
+            ;;
+    esac
+}
+
+# Generate shell function
+generate_function() {
+    local fn_name=$1
+    local description=$2
+    local provider=$3
+    local model=$4
+    
+    echo -e "${CYAN}Generating function: ${BOLD}${fn_name}${NC}"
+    
+    local prompt="Generate a bash function named '$fn_name' that: $description
+
+Requirements:
+- Function must be safe and handle errors
+- Include helpful comments
+- Use standard bash/unix tools
+- Return ONLY the function code, no explanation
+- Start with: ${fn_name}() {"
+    
+    local code=$(call_api "$provider" "$model" "$prompt" false "You are an expert bash programmer. Generate clean, safe, well-commented bash functions." 1.0 2048)
+    
+    # Validate basic syntax
+    if ! echo "$code" | bash -n 2>/dev/null; then
+        echo -e "${RED}Generated function has syntax errors${NC}"
+        return 1
+    fi
+    
+    echo -e "\n${GREEN}Generated function:${NC}\n"
+    echo "$code"
+    
+    echo -e "\n${YELLOW}Save this function? (y/n/e to edit)${NC}"
+    read -r reply
+    
+    case $reply in
+        y|Y)
+            echo -e "\n# Generated by ASK on $(date)" >> "$FUNCTIONS_FILE"
+            echo "$code" >> "$FUNCTIONS_FILE"
+            echo -e "\n${GREEN}✓ Function saved to $FUNCTIONS_FILE${NC}"
+            echo -e "Source it with: ${DIM}source $FUNCTIONS_FILE${NC}"
+            ;;
+        e|E)
+            local tmp_file=$(mktemp)
+            echo "$code" > "$tmp_file"
+            ${EDITOR:-vi} "$tmp_file"
+            echo -e "\n# Generated by ASK on $(date)" >> "$FUNCTIONS_FILE"
+            cat "$tmp_file" >> "$FUNCTIONS_FILE"
+            rm "$tmp_file"
+            echo -e "${GREEN}✓ Function saved${NC}"
+            ;;
+        *)
+            echo -e "${YELLOW}Function not saved${NC}"
+            ;;
+    esac
+}
+
+# Agent mode
+agent_mode() {
+    local goal=$1
+    local dry_run=$2
+    local provider=$3
+    local model=$4
+    
+    echo -e "${MAGENTA}🤖 Agent Mode${NC}"
+    echo -e "Goal: ${BOLD}${goal}${NC}\n"
+    
+    local context=$(gather_context full)
+    local prompt="You are a bash automation agent. Create a step-by-step plan to: $goal
+
+Context:
+$context
+
+Return a JSON array of steps with this structure:
+[
+  {
+    \"step\": 1,
+    \"description\": \"What this step does\",
+    \"command\": \"actual bash command\",
+    \"risk\": \"low|medium|high\"
+  }
+]
+
+Guidelines:
+- Use only safe, standard unix commands
+- Each command should be independently executable
+- Mark anything that modifies files as 'high' risk
+- Mark read-only operations as 'low' risk"
+    
+    echo -e "${CYAN}Creating execution plan...${NC}\n"
+    local plan=$(call_api "$provider" "$model" "$prompt" false "You are a bash automation expert. Always return valid JSON." 0.7 2048)
+    
+    # Try to extract JSON from response
+    plan=$(echo "$plan" | sed -n '/\[/,/\]/p')
+    
+    if ! echo "$plan" | jq empty 2>/dev/null; then
+        echo -e "${RED}Failed to generate valid execution plan${NC}"
+        return 1
+    fi
+    
+    echo -e "${BOLD}Execution Plan:${NC}"
+    echo "$plan" | jq -r '.[] | "[\(.step)] \(.description)\n    Command: \(.command)\n    Risk: \(.risk)\n"'
+    
+    if [ "$dry_run" = true ]; then
+        echo -e "${YELLOW}🏜️  Dry run - no commands executed${NC}"
+        return 0
+    fi
+    
+    echo -e "${YELLOW}Execute this plan? (y/n)${NC}"
+    read -r confirm
+    [[ ! $confirm =~ ^[Yy]$ ]] && return 0
+    
+    echo "$plan" | jq -c '.[]' | while read -r step; do
+        local cmd=$(echo "$step" | jq -r '.command')
+        local desc=$(echo "$step" | jq -r '.description')
+        local risk=$(echo "$step" | jq -r '.risk')
+        
+        echo -e "\n${CYAN}→ $desc${NC}"
+        
+        if [ "$risk" = "high" ]; then
+            echo -e "${RED}⚠️  High risk command:${NC} $cmd"
+            echo -e "${YELLOW}Execute? (y/n)${NC}"
+            read -r confirm
+            [[ ! $confirm =~ ^[Yy]$ ]] && continue
+        else
+            echo -e "${DIM}$cmd${NC}"
+        fi
+        
+        eval "$cmd"
+        local exit_code=$?
+        
+        if [ $exit_code -eq 0 ]; then
+            echo -e "${GREEN}✓ Success${NC}"
+        else
+            echo -e "${RED}✗ Failed (exit code: $exit_code)${NC}"
+            echo -e "${YELLOW}Continue? (y/n)${NC}"
+            read -r confirm
+            [[ ! $confirm =~ ^[Yy]$ ]] && break
+        fi
+    done
+}
+
+# Git commit helper
+git_commit_helper() {
+    if ! git rev-parse --git-dir &>/dev/null; then
+        echo -e "${RED}Not in a git repository${NC}"
+        return 1
+    fi
+    
+    local diff=$(git diff --cached)
+    if [ -z "$diff" ]; then
+        echo -e "${YELLOW}No staged changes. Stage changes with: git add${NC}"
+        return 1
+    fi
+    
+    echo -e "${CYAN}Analyzing staged changes...${NC}\n"
+    
+    local prompt="Generate a semantic commit message for these changes. Follow conventional commits format: type(scope): description
+
+Changes:
+$diff
+
+Return ONLY the commit message, no explanation."
+    
+    local msg=$(call_api "$DEFAULT_PROVIDER" "$DEFAULT_MODEL" "$prompt" false "You are a git expert. Generate concise, semantic commit messages." 0.7 1024)
+    
+    echo -e "${GREEN}Suggested commit message:${NC}"
+    echo -e "${BOLD}$msg${NC}\n"
+    
+    echo -e "${YELLOW}Use this message? (y/n/e to edit)${NC}"
+    read -r reply
+    
+    case $reply in
+        y|Y)
+            git commit -m "$msg"
+            ;;
+        e|E)
+            local tmp_file=$(mktemp)
+            echo "$msg" > "$tmp_file"
+            ${EDITOR:-vi} "$tmp_file"
+            git commit -F "$tmp_file"
+            rm "$tmp_file"
+            ;;
+        *)
+            echo -e "${YELLOW}Commit cancelled${NC}"
+            ;;
+    esac
+}
+
+# Save/load history (Bash 3.x compatible)
+save_history() {
+    echo "$CONVERSATION_JSON" > "$HISTORY_FILE"
+    echo -e "${GREEN}✓ Conversation saved${NC}"
+}
+
+load_history() {
+    if [ -f "$HISTORY_FILE" ]; then
+        CONVERSATION_JSON=$(cat "$HISTORY_FILE")
+        local msg_count=$(echo "$CONVERSATION_JSON" | jq 'length')
+        echo -e "${GREEN}✓ Loaded ${msg_count} messages${NC}"
+    else
+        echo -e "${YELLOW}No history found${NC}"
+    fi
+}
+
+# Interactive mode
+interactive_mode() {
+    local provider=$1
+    local model=$2
+    local stream=$3
+    local context_level=$4
+    
+    show_banner
+    echo -e "${DIM}Provider: ${GREEN}${provider}${NC}${DIM} | Model: ${GREEN}${model}${NC}"
+    echo -e "${DIM}Streaming: ${GREEN}${stream}${NC}${DIM} | Context: ${GREEN}${context_level}${NC}\n"
+    echo -e "${YELLOW}Type your message (or /help for commands)${NC}\n"
+    
+    while true; do
+        echo -ne "${BLUE}ask>${NC} "
+        read -r input
+        
+        case $input in
+            /exit|/quit|exit|quit)
+                echo -e "${CYAN}Goodbye!${NC}"
+                exit 0
+                ;;
+            /clear)
+                CONVERSATION_JSON='[]'
+                echo -e "${GREEN}✓ Conversation cleared${NC}"
+                continue
+                ;;
+            /save)
+                save_history
+                continue
+                ;;
+            /load)
+                load_history
+                continue
+                ;;
+            /models)
+                list_models "$provider"
+                continue
+                ;;
+            /switch*)
+                read -r _ new_provider new_model <<< "$input"
+                [ -n "$new_provider" ] && provider="$new_provider" && check_api_key "$provider"
+                [ -n "$new_model" ] && model="$new_model"
+                echo -e "${GREEN}✓ Switched to ${provider}/${model}${NC}"
+                continue
+                ;;
+            /context*)
+                read -r _ new_level <<< "$input"
+                [ -n "$new_level" ] && context_level="$new_level"
+                echo -e "${GREEN}✓ Context level: ${context_level}${NC}"
+                continue
+                ;;
+            /help)
+                show_help
+                continue
+                ;;
+            "")
+                continue
+                ;;
+        esac
+        
+        # Add context if enabled
+        local full_prompt="$input"
+        if [ "$context_level" != "none" ]; then
+            local ctx=$(gather_context "$context_level")
+            full_prompt="Context:\n$ctx\n\nQuestion: $input"
+        fi
+        
+        # Add to conversation (Bash 3.x compatible)
+        [ -z "$CONVERSATION_JSON" ] && CONVERSATION_JSON='[]'
+        CONVERSATION_JSON=$(echo "$CONVERSATION_JSON" | jq ". + [{\"role\":\"user\",\"content\":$(echo "$input" | jq -Rs .)}]")
+        
+        # Call API and show response (no label, just content)
+        if [ "$stream" = "true" ]; then
+            # Streaming: output goes directly to terminal
+            call_api "$provider" "$model" "$input" "$stream" "" "" ""
+            echo ""
+            # Add a simple confirmation to history (actual response was streamed)
+            CONVERSATION_JSON=$(echo "$CONVERSATION_JSON" | jq ". + [{\"role\":\"assistant\",\"content\":\"[Response streamed]\"}]")
+        else
+            # Non-streaming: capture and display
+            local response=$(call_api "$provider" "$model" "$input" "$stream" "" "" "")
+            if [ -n "$response" ]; then
+                echo "$response"
+                echo ""
+                CONVERSATION_JSON=$(echo "$CONVERSATION_JSON" | jq ". + [{\"role\":\"assistant\",\"content\":$(echo "$response" | jq -Rs .)}]")
+            fi
+        fi
+        
+        # Trim history if too long
+        local msg_count=$(echo "$CONVERSATION_JSON" | jq 'length')
+        if [ "$msg_count" -gt $((MAX_HISTORY * 2)) ]; then
+            CONVERSATION_JSON=$(echo "$CONVERSATION_JSON" | jq '.[2:]')
+        fi
+    done
+}
+
+# Main
+main() {
+    local provider="${ASK_PROVIDER:-$DEFAULT_PROVIDER}"
+    local model="${ASK_MODEL:-$DEFAULT_MODEL}"
+    local stream="$STREAM_ENABLED"
+    local temperature="$DEFAULT_TEMPERATURE"
+    local max_tokens="$DEFAULT_MAX_TOKENS"
+    local system_prompt=""
+    local context_level="auto"
+    local mode="chat"
+    local prompt=""
+    
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -p|--provider)
+                provider="$2"
+                shift 2
+                ;;
+            -m|--model)
+                model="$2"
+                shift 2
+                ;;
+            -t|--temperature)
+                temperature="$2"
+                shift 2
+                ;;
+            -s|--stream)
+                stream=true
+                shift
+                ;;
+            -n|--no-stream)
+                stream=false
+                shift
+                ;;
+            --system)
+                system_prompt="$2"
+                shift 2
+                ;;
+            --context)
+                context_level="${2:-auto}"
+                shift 2
+                ;;
+            --agent)
+                mode="agent"
+                shift
+                ;;
+            --dry-run)
+                mode="agent"
+                dry_run=true
+                shift
+                ;;
+            --fn)
+                mode="function"
+                fn_name="$2"
+                fn_desc="$3"
+                shift 3
+                ;;
+            --list-models)
+                list_models "$provider"
+                exit 0
+                ;;
+            --save)
+                save_history
+                exit 0
+                ;;
+            --load)
+                load_history
+                exit 0
+                ;;
+            --clear)
+                rm -f "$HISTORY_FILE"
+                echo -e "${GREEN}✓ History cleared${NC}"
+                exit 0
+                ;;
+            -v|--version)
+                echo "ASK v${VERSION}"
+                exit 0
+                ;;
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            commit)
+                git_commit_helper
+                exit 0
+                ;;
+            keys)
+                shift
+                manage_keys "$@"
+                exit 0
+                ;;
+            -*)
+                echo -e "${RED}Unknown option: $1${NC}"
+                echo "Try 'ask --help' for more information"
+                exit 1
+                ;;
+            *)
+                prompt="$*"
+                break
+                ;;
+        esac
+    done
+    
+    check_dependencies
+    init_config
+    check_api_key "$provider"
+    
+    # Check for piped input
+    local piped_input=""
+    if [ ! -t 0 ]; then
+        # stdin is not a terminal, read piped input
+        piped_input=$(cat)
+    fi
+    
+    # If we have piped input and a prompt, combine them
+    if [ -n "$piped_input" ] && [ -n "$prompt" ]; then
+        prompt="Input:\n\`\`\`\n${piped_input}\n\`\`\`\n\nQuestion: ${prompt}"
+    elif [ -n "$piped_input" ] && [ -z "$prompt" ]; then
+        # Only piped input, no prompt
+        prompt="$piped_input"
+    fi
+    
+    # Handle different modes
+    case $mode in
+        function)
+            generate_function "$fn_name" "$fn_desc" "$provider" "$model"
+            ;;
+        agent)
+            agent_mode "$prompt" "${dry_run:-false}" "$provider" "$model"
+            ;;
+        chat)
+            if [ -n "$prompt" ]; then
+                # One-shot mode - just show response, no label
+                call_api "$provider" "$model" "$prompt" "$stream" "$system_prompt" "$temperature" "$max_tokens"
+                echo ""
+            else
+                # Interactive mode
+                interactive_mode "$provider" "$model" "$stream" "$context_level"
+            fi
+            ;;
+    esac
+}
+
+main "$@"
