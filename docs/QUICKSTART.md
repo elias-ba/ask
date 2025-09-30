@@ -1,6 +1,6 @@
-# ASK Quick Start Guide
+# ask Quick Start Guide
 
-Get up and running with ASK in 5 minutes.
+Get up and running with ask in 5 minutes.
 
 ## Installation
 
@@ -22,12 +22,12 @@ sudo mv ask /usr/local/bin/
 
 ```bash
 ask --version
-# ASK v1.0.0
+# ask v1.0.0
 ```
 
 ## Setup API Key
 
-ASK makes this super easy - no need to edit config files!
+ask makes this super easy - no need to edit config files!
 
 ### Set Your API Key
 
@@ -36,7 +36,7 @@ ask keys set anthropic
 # You'll be prompted to paste your key (it won't show on screen)
 ```
 
-That's it! ASK stores it securely in `~/.config/ask/keys.env`.
+That's it! ask stores it securely in `~/.config/ask/keys.env`.
 
 ### Get an API Key
 
@@ -91,7 +91,7 @@ You'll see a streaming response instantly!
 ls -lh | ask "explain this output"
 ```
 
-ASK understands piped input naturally.
+ask understands piped input naturally.
 
 ### 3. Interactive Mode
 
@@ -118,7 +118,7 @@ git add .
 ask commit
 ```
 
-ASK analyzes your staged changes and suggests a semantic commit message.
+ask analyzes your staged changes and suggests a semantic commit message.
 
 ## Essential Commands
 
@@ -134,13 +134,13 @@ ASK analyzes your staged changes and suggests a semantic commit message.
 
 ### Agent Mode
 
-Let ASK execute tasks:
+Let ask execute tasks:
 
 ```bash
 ask --agent "find all TODO comments and count them by file"
 ```
 
-ASK will:
+ask will:
 
 1. Create a safe execution plan
 2. Show you what it will do
@@ -153,7 +153,7 @@ ASK will:
 ask --fn parse_logs "extract error lines from log files"
 ```
 
-ASK creates a bash function you can use forever:
+ask creates a bash function you can use forever:
 
 ```bash
 source ~/.config/ask/functions.sh
@@ -163,7 +163,7 @@ parse_logs /var/log/app.log
 ### Context Awareness
 
 ```bash
-# ASK automatically includes:
+# ask automatically includes:
 # - Current directory
 # - Git status (if in repo)
 # - Recent commands
@@ -315,7 +315,7 @@ Start simple:
 ask "what can you help me with?"
 ```
 
-**Remember**: Don't grep. Don't awk. Just ASK.
+**Remember**: don't grep. don't awk. just ask
 
 ---
 

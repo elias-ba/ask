@@ -1,6 +1,6 @@
-# ASK Key Management
+# ask Key Management
 
-ASK provides built-in, secure API key management so you don't need to mess with environment variables.
+ask provides built-in, secure API key management so you don't need to mess with environment variables.
 
 ## Quick Start
 
@@ -80,7 +80,7 @@ OPENAI_API_KEY=sk-your-key-here
 
 ### Priority
 
-ASK loads keys in this order:
+ask loads keys in this order:
 
 1. **Environment variables** (if already set)
 2. **Keys file** (`~/.config/ask/keys.env`)
@@ -130,7 +130,7 @@ export ANTHROPIC_API_KEY='team-key'
 
 ## Environment Variables vs Key Management
 
-### Using ASK Key Management (Recommended)
+### Using ask Key Management (Recommended)
 
 ✅ Easier setup - no config file editing  
 ✅ Secure by default (600 permissions)  
@@ -211,7 +211,7 @@ export XDG_CONFIG_HOME=/new/location
 
 ## Best Practices
 
-### 1. Use ASK Key Management for Personal Use
+### 1. Use ask Key Management for Personal Use
 
 ```bash
 ask keys set anthropic
@@ -314,4 +314,4 @@ ask keys set anthropic
 ask keys list
 ```
 
-**That's it!** ASK handles the rest securely.
+**That's it!** ask handles the rest securely.

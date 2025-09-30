@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-# ASK Installer
-# Quick installation script for ASK - ASK Shell Kernel
+# ask Installer
+# Quick installation script for ask
 
 set -e
 
@@ -20,12 +20,13 @@ NC='\033[0m'
 
 echo -e "${CYAN}${BOLD}"
 cat <<'EOF'
-   ___   _____ _  __
-  / _ | / __/ |/ /
- / __ |_\ \|   / 
-/_/ |_/___/_/|_|  
-
-ASK Shell Kernel Installer
+            _    
+   __ _ ___| | __
+  / _` / __| |/ /
+ | (_| \__ \   < 
+  \__,_|___/_|\_\
+  
+ask - ai powered shell assistant
 EOF
 echo -e "${NC}"
 
@@ -68,8 +69,7 @@ if [ ${#missing_deps[@]} -gt 0 ]; then
     exit 1
 fi
 
-# Download ASK
-echo -e "\n${CYAN}Downloading ASK...${NC}"
+echo -e "\n${CYAN}Downloading ask...${NC}"
 if curl -fsSL "$REPO_URL" -o "$INSTALL_DIR/ask"; then
     echo -e "${GREEN}✓ Downloaded successfully${NC}"
 else
@@ -88,7 +88,7 @@ echo -e "${GREEN}✓ Created config directories${NC}"
 
 # Create empty functions file
 cat > "$CONFIG_DIR/functions.sh" <<'EOF'
-# ASK Generated Functions
+# ask generated functions
 # Source this file: source ~/.config/ask/functions.sh
 # Or add to your ~/.bashrc: source ~/.config/ask/functions.sh
 
@@ -108,7 +108,7 @@ fi
 # Verify installation
 echo -e "\n${CYAN}Verifying installation...${NC}"
 if "$INSTALL_DIR/ask" --version &> /dev/null; then
-    echo -e "${GREEN}✓ ASK installed successfully!${NC}"
+    echo -e "${GREEN}✓ ask installed successfully!${NC}"
 else
     echo -e "${RED}✗ Installation verification failed${NC}"
     exit 1
@@ -163,4 +163,4 @@ echo -e ""
 echo -e "${BOLD}Get help:${NC}"
 echo -e "  ${CYAN}ask --help${NC}                 # Show all options"
 echo -e "  ${CYAN}ask keys list${NC}              # View configured keys"
-echo -e "\n${BOLD}Don't grep. Don't awk. Just ASK.${NC}\n"
+echo -e "\n${BOLD}don't grep. don't awk. just ask${NC}\n"

@@ -1,20 +1,19 @@
-# ASK - ASK Shell Kernel
-
 ```bash
-   ___   _____ _  __
-  / _ | / __/ |/ /
- / __ |_\ \|   /
-/_/ |_/___/_/|_|
+            _    
+   __ _ ___| | __
+  / _` / __| |/ /
+ | (_| \__ \   < 
+  \__,_|___/_|\_\
+
 ```
 
-**A recursive acronym in the GNU tradition**  
-_"Intelligence, one command away"_
+_"don't grep. don't awk. just ask"_
 
-ASK is a powerful AI-powered CLI tool for developers who live in the terminal. It brings multi-provider LLM support, agent capabilities, and shell-native intelligence to your fingertips.
+ask is a powerful AI-powered CLI tool for developers who live in the terminal. It brings multi-provider LLM support, agent capabilities, and shell-native intelligence to your fingertips.
 
-## Why ASK?
+## Why ask?
 
-Unlike generic LLM CLIs, ASK is built for **shell power users**:
+Unlike generic LLM CLIs, ask is built for **shell power users**:
 
 - **Generates reusable bash functions** - Not just answers, but tools
 - **Agent mode** - Executes safe plans with your approval
@@ -71,7 +70,7 @@ brew install curl jq
 
 ### Quick Setup (Recommended)
 
-ASK manages API keys for you:
+ask manages API keys for you:
 
 ```bash
 # Set your API key (it will prompt you securely)
@@ -130,7 +129,7 @@ cat error.log | ask "what's causing these errors?"
 
 ### Agent Mode
 
-Let ASK execute tasks for you:
+Let ask execute tasks for you:
 
 ```bash
 # Optimize images
@@ -151,7 +150,7 @@ Create reusable tools:
 # Generate a function
 ask --fn parse_nginx "extract 500 errors from nginx access logs"
 
-# ASK will generate, validate, and save:
+# ask will generate, validate, and save:
 # parse_nginx() {
 #   grep " 500 " "$1" | awk '{print $1, $7}' | sort | uniq -c
 # }
@@ -241,7 +240,7 @@ Inside `ask` interactive mode:
 
 ## Configuration
 
-ASK uses XDG Base Directory spec:
+ask uses XDG Base Directory spec:
 
 ```bash
 ~/.config/ask/           # Configuration
@@ -295,7 +294,7 @@ ask --agent "find files with 777 permissions"
 
 ## Contributing
 
-Contributions welcome! ASK is designed to be:
+Contributions welcome! ask is designed to be:
 
 - **Simple** - Pure bash, easy to understand
 - **Powerful** - Real developer workflows
@@ -304,14 +303,14 @@ Contributions welcome! ASK is designed to be:
 
 ## Philosophy
 
-ASK follows the Unix philosophy:
+ask follows the Unix philosophy:
 
 1. **Do one thing well** - Shell-native AI assistance
 2. **Work together** - Pipe-friendly, composable
 3. **Text streams** - Universal interface
 4. **Simple** - Bash script, no complex dependencies
 
-Inspired by GNU's recursive acronym tradition and built for developers who never leave the terminal.
+Built for developers who never leave the terminal.
 
 ## Troubleshooting
 
@@ -357,6 +356,6 @@ MIT License - See LICENSE file
 
 ---
 
-**ASK** - Because the best interface is conversation.
+**ask** - because the best interface is conversation.
 
-_Don't grep. Don't awk. Just ASK._
+_don't grep. don't awk. just ask_
