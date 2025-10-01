@@ -107,7 +107,7 @@ $(echo -e "${YELLOW}USAGE:${NC}")
     ask [OPTIONS]              # Interactive mode
     
 $(echo -e "${YELLOW}OPTIONS:${NC}")
-    $(echo -e "${GREEN}-p, --provider${NC}") PROVIDER    Provider: anthropic, openai, openrouter
+    $(echo -e "${GREEN}-p, --provider${NC}") PROVIDER   Provider: anthropic, openai, openrouter
                                   [default: anthropic]
     $(echo -e "${GREEN}-m, --model${NC}") MODEL         Model name [default: claude-sonnet-4-5]
     $(echo -e "${GREEN}-t, --temperature${NC}") TEMP    Temperature 0.0-2.0 [default: 1.0]
@@ -129,7 +129,15 @@ $(echo -e "${YELLOW}OPTIONS:${NC}")
     $(echo -e "${GREEN}--list-models${NC}")             List available models
     $(echo -e "${GREEN}--multiline${NC}")               Multi-line input mode (Ctrl+D to send)
     $(echo -e "${GREEN}--json${NC}")                    Output raw JSON
-    
+
+    $(echo -e "${GREEN}/gh-pr${NC}") [NUMBER]           Load GitHub PR context
+    $(echo -e "${GREEN}/gh-pr-diff${NC}") [NUM]         Load GitHub PR diff
+    $(echo -e "${GREEN}/gh-issue${NC}") NUMBER          Load GitHub issue context
+    $(echo -e "${GREEN}/gh-prs${NC}") [STATE]           List PRs (open/closed/all)
+    $(echo -e "${GREEN}/gh-issues${NC}") [STATE]        List issues (open/closed/all)
+    $(echo -e "${GREEN}/gh-repo${NC}")                  Show repository info
+    $(echo -e "${GREEN}/gh-help${NC}")                  GitHub commands help
+
     $(echo -e "${GREEN}keys${NC}") <action>             Manage API keys
       set <provider>         Set API key (prompted securely)
       list                   List configured keys
@@ -177,6 +185,8 @@ $(echo -e "${YELLOW}INTERACTIVE COMMANDS:${NC}")
     $(echo -e "${GREEN}/models${NC}")             List available models
     $(echo -e "${GREEN}/switch${NC}") [P] [M]    Switch provider/model
     $(echo -e "${GREEN}/context${NC}") [LEVEL]   Set context level
+    $(echo -e "${GREEN}/gh-pr${NC}") [NUMBER]    Load GitHub PR context
+    $(echo -e "${GREEN}/gh-issue${NC}") NUMBER   Load GitHub issue context
     $(echo -e "${GREEN}/help${NC}")               Show help
     $(echo -e "${GREEN}/exit${NC}") or $(echo -e "${GREEN}/quit${NC}")    Exit
 
@@ -452,6 +462,296 @@ gather_context() {
     esac
     
     echo "$context"
+}
+
+check_github_cli() {
+    if ! command -v gh &>/dev/null; then
+        echo -e "${RED}Error: GitHub CLI (gh) is not installed${NC}" >&2
+        echo -e "${YELLOW}Install with:${NC}" >&2
+        echo -e "  macOS:   ${DIM}brew install gh${NC}" >&2
+        echo -e "  Linux:   ${DIM}See https://cli.github.com/manual/installation${NC}" >&2
+        return 1
+    fi
+    
+    if ! gh auth status &>/dev/null; then
+        echo -e "${RED}Error: Not authenticated with GitHub${NC}" >&2
+        echo -e "${YELLOW}Authenticate with: ${CYAN}gh auth login${NC}" >&2
+        return 1
+    fi
+    
+    return 0
+}
+
+check_github_repo() {
+    if ! git rev-parse --git-dir &>/dev/null; then
+        echo -e "${RED}Error: Not in a git repository${NC}" >&2
+        return 1
+    fi
+    
+    local remote_url=$(git config --get remote.origin.url 2>/dev/null)
+    if [[ ! "$remote_url" =~ github\.com ]]; then
+        echo -e "${RED}Error: No GitHub remote found${NC}" >&2
+        echo -e "${DIM}Current remote: $remote_url${NC}" >&2
+        return 1
+    fi
+    
+    return 0
+}
+
+gather_github_context() {
+    local type=$1
+    local id=$2
+    local context=""
+    
+    check_github_cli || return 1
+    check_github_repo || return 1
+    
+    case $type in
+        pr)
+            if [ -n "$id" ] && [ "$id" != "current" ]; then
+                local pr_data=$(gh pr view "$id" --json number,title,body,author,state,isDraft,additions,deletions,labels,reviewDecision 2>&1)
+                local exit_code=$?
+                
+                if [ $exit_code -ne 0 ]; then
+                    echo -e "${RED}Error: Could not fetch PR #${id}${NC}" >&2
+                    echo -e "${DIM}$pr_data${NC}" >&2
+                    return 1
+                fi
+                
+                context+="=== GitHub Pull Request #$id ===\n"
+                context+="$(echo "$pr_data" | jq -r '
+                    "Title: \(.title)",
+                    "Author: \(.author.login)",
+                    "State: \(.state)" + (if .isDraft then " (Draft)" else "" end),
+                    "Review: \(.reviewDecision // "Not reviewed")",
+                    "Changes: +\(.additions)/-\(.deletions)",
+                    "Labels: \(if .labels | length > 0 then ([.labels[].name] | join(", ")) else "none" end)",
+                    "",
+                    "Description:",
+                    "\(.body // "No description provided")"
+                ')\n\n"
+                
+            else
+                local pr_data=$(gh pr view --json number,title,body,author,state,isDraft,additions,deletions,labels,reviewDecision,commits 2>&1)
+                local exit_code=$?
+                
+                if [ $exit_code -ne 0 ]; then
+                    echo -e "${YELLOW}No PR found for current branch${NC}" >&2
+                    return 1
+                fi
+                
+                local pr_num=$(echo "$pr_data" | jq -r '.number')
+                context+="=== Current Branch PR #$pr_num ===\n"
+                context+="$(echo "$pr_data" | jq -r '
+                    "Title: \(.title)",
+                    "Author: \(.author.login)",
+                    "State: \(.state)" + (if .isDraft then " (Draft)" else "" end),
+                    "Review: \(.reviewDecision // "Not reviewed")",
+                    "Changes: +\(.additions)/-\(.deletions)",
+                    "Commits: \(.commits | length)",
+                    "Labels: \(if .labels | length > 0 then ([.labels[].name] | join(", ")) else "none" end)",
+                    "",
+                    "Description:",
+                    "\(.body // "No description provided")"
+                ')\n\n"
+            fi
+            ;;
+            
+        issue)
+            if [ -z "$id" ]; then
+                echo -e "${RED}Error: Issue number required${NC}" >&2
+                echo -e "Usage: /gh-issue <number>" >&2
+                return 1
+            fi
+            
+            local issue_data=$(gh issue view "$id" --json number,title,body,author,state,labels,assignees,comments 2>&1)
+            local exit_code=$?
+            
+            if [ $exit_code -ne 0 ]; then
+                echo -e "${RED}Error: Could not fetch issue #${id}${NC}" >&2
+                echo -e "${DIM}$issue_data${NC}" >&2
+                return 1
+            fi
+            
+            context+="=== GitHub Issue #$id ===\n"
+            context+="$(echo "$issue_data" | jq -r '
+                "Title: \(.title)",
+                "Author: \(.author.login)",
+                "State: \(.state)",
+                "Assignees: \(if .assignees | length > 0 then ([.assignees[].login] | join(", ")) else "none" end)",
+                "Labels: \(if .labels | length > 0 then ([.labels[].name] | join(", ")) else "none" end)",
+                "Comments: \(.comments | length)",
+                "",
+                "Description:",
+                "\(.body // "No description provided")"
+            ')\n\n"
+            
+            local comment_count=$(echo "$issue_data" | jq '.comments | length')
+            if [ "$comment_count" -gt 0 ]; then
+                context+="Recent Comments:\n"
+                context+="$(echo "$issue_data" | jq -r '
+                    .comments[-3:] | .[] | 
+                    "---\n\(.author.login) on \(.createdAt[:10]):\n\(.body)\n"
+                ')\n"
+            fi
+            ;;
+            
+        pr-diff)
+            if [ -z "$id" ]; then
+                local diff=$(gh pr diff 2>&1)
+            else
+                local diff=$(gh pr diff "$id" 2>&1)
+            fi
+            
+            if [ $? -ne 0 ]; then
+                echo -e "${RED}Error: Could not fetch PR diff${NC}" >&2
+                return 1
+            fi
+            
+            context+="=== PR Changes ===\n"
+            context+="\`\`\`diff\n$diff\n\`\`\`\n\n"
+            ;;
+            
+        pr-list)
+            local state="${id:-open}"
+            local prs=$(gh pr list --state "$state" --json number,title,author,updatedAt --limit 10 2>&1)
+            
+            if [ $? -ne 0 ]; then
+                echo -e "${RED}Error: Could not list PRs${NC}" >&2
+                return 1
+            fi
+            
+            context+="=== ${state^} Pull Requests ===\n"
+            context+="$(echo "$prs" | jq -r '.[] | "#\(.number): \(.title) (@\(.author.login)) - Updated: \(.updatedAt[:10])"')\n\n"
+            ;;
+            
+        issue-list)
+            local state="${id:-open}"
+            local issues=$(gh issue list --state "$state" --json number,title,author,updatedAt --limit 10 2>&1)
+            
+            if [ $? -ne 0 ]; then
+                echo -e "${RED}Error: Could not list issues${NC}" >&2
+                return 1
+            fi
+            
+            context+="=== ${state^} Issues ===\n"
+            context+="$(echo "$issues" | jq -r '.[] | "#\(.number): \(.title) (@\(.author.login)) - Updated: \(.updatedAt[:10])"')\n\n"
+            ;;
+            
+        repo)
+            local repo_data=$(gh repo view --json name,description,stargazerCount,forkCount,primaryLanguage,defaultBranchRef 2>&1)
+            
+            if [ $? -ne 0 ]; then
+                echo -e "${RED}Error: Could not fetch repo info${NC}" >&2
+                return 1
+            fi
+            
+            context+="=== Repository Info ===\n"
+            context+="$(echo "$repo_data" | jq -r '
+                "Name: \(.name)",
+                "Description: \(.description // "No description")",
+                "Stars: \(.stargazerCount)",
+                "Forks: \(.forkCount)",
+                "Language: \(.primaryLanguage.name // "Unknown")",
+                "Default Branch: \(.defaultBranchRef.name)"
+            ')\n\n"
+            ;;
+    esac
+    
+    echo -e "$context"
+}
+
+handle_github_command() {
+    local cmd=$1
+    shift
+    local args=("$@")
+    
+    case $cmd in
+        /gh-pr)
+            local pr_num="${args[0]}"
+            echo -e "${CYAN}Fetching PR context...${NC}"
+            local gh_ctx=$(gather_github_context "pr" "$pr_num")
+            if [ $? -eq 0 ] && [ -n "$gh_ctx" ]; then
+                echo -e "${GREEN}✓ Loaded PR context${NC}"
+                GH_CONTEXT="$gh_ctx"
+            fi
+            ;;
+            
+        /gh-pr-diff)
+            local pr_num="${args[0]}"
+            echo -e "${CYAN}Fetching PR diff...${NC}"
+            local gh_ctx=$(gather_github_context "pr-diff" "$pr_num")
+            if [ $? -eq 0 ] && [ -n "$gh_ctx" ]; then
+                echo -e "${GREEN}✓ Loaded PR diff${NC}"
+                GH_CONTEXT="$gh_ctx"
+            fi
+            ;;
+            
+        /gh-issue)
+            local issue_num="${args[0]}"
+            if [ -z "$issue_num" ]; then
+                echo -e "${RED}Error: Issue number required${NC}"
+                echo "Usage: /gh-issue <number>"
+                return
+            fi
+            echo -e "${CYAN}Fetching issue context...${NC}"
+            local gh_ctx=$(gather_github_context "issue" "$issue_num")
+            if [ $? -eq 0 ] && [ -n "$gh_ctx" ]; then
+                echo -e "${GREEN}✓ Loaded issue #${issue_num} context${NC}"
+                GH_CONTEXT="$gh_ctx"
+            fi
+            ;;
+            
+        /gh-prs)
+            local state="${args[0]:-open}"
+            echo -e "${CYAN}Listing ${state} PRs...${NC}"
+            local gh_ctx=$(gather_github_context "pr-list" "$state")
+            if [ $? -eq 0 ] && [ -n "$gh_ctx" ]; then
+                echo "$gh_ctx"
+            fi
+            ;;
+            
+        /gh-issues)
+            local state="${args[0]:-open}"
+            echo -e "${CYAN}Listing ${state} issues...${NC}"
+            local gh_ctx=$(gather_github_context "issue-list" "$state")
+            if [ $? -eq 0 ] && [ -n "$gh_ctx" ]; then
+                echo "$gh_ctx"
+            fi
+            ;;
+            
+        /gh-repo)
+            echo -e "${CYAN}Fetching repository info...${NC}"
+            local gh_ctx=$(gather_github_context "repo" "")
+            if [ $? -eq 0 ] && [ -n "$gh_ctx" ]; then
+                echo "$gh_ctx"
+            fi
+            ;;
+            
+        /gh-help)
+            cat <<EOF
+${CYAN}${BOLD}GitHub Commands:${NC}
+
+${GREEN}/gh-pr [NUMBER]${NC}        Load PR context (current branch if no number)
+${GREEN}/gh-pr-diff [NUMBER]${NC}   Load PR diff (current branch if no number)
+${GREEN}/gh-issue NUMBER${NC}       Load issue context
+${GREEN}/gh-prs [STATE]${NC}        List PRs (open/closed/all)
+${GREEN}/gh-issues [STATE]${NC}     List issues (open/closed/all)
+${GREEN}/gh-repo${NC}               Show repository info
+${GREEN}/gh-help${NC}               Show this help
+
+${YELLOW}Examples:${NC}
+  ${DIM}/gh-pr 123          ${NC}Load PR #123
+  ${DIM}/gh-pr              ${NC}Load current branch PR
+  ${DIM}/gh-issue 42        ${NC}Load issue #42
+  ${DIM}/gh-prs closed      ${NC}List closed PRs
+  ${DIM}/gh-repo            ${NC}Show repo info
+
+${YELLOW}Prerequisites:${NC}
+  ${DIM}gh auth login       ${NC}Authenticate with GitHub
+EOF
+            ;;
+    esac
 }
 
 handle_stream() {
@@ -817,6 +1117,8 @@ interactive_mode() {
     local stream=$3
     local context_level=$4
     
+    GH_CONTEXT=""
+    
     show_banner
     echo -e "${DIM}Provider: ${GREEN}${provider}${NC}${DIM} | Model: ${GREEN}${model}${NC}"
     echo -e "${DIM}Streaming: ${GREEN}${stream}${NC}${DIM} | Context: ${GREEN}${context_level}${NC}\n"
@@ -834,6 +1136,18 @@ interactive_mode() {
             /clear)
                 CONVERSATION_JSON='[]'
                 echo -e "${GREEN}✓ Conversation cleared${NC}"
+                continue
+                ;;
+            /gh-*)
+                local gh_cmd=$(echo "$input" | awk '{print $1}')
+                local gh_args_raw=$(echo "$input" | cut -s -d' ' -f2-)
+                
+                if [ -n "$gh_args_raw" ]; then
+                    read -ra gh_args_array <<< "$gh_args_raw"
+                    handle_github_command "$gh_cmd" "${gh_args_array[@]}"
+                else
+                    handle_github_command "$gh_cmd"
+                fi
                 continue
                 ;;
             /save)
@@ -871,10 +1185,14 @@ interactive_mode() {
         esac
         
         local full_prompt="$input"
+        if [ -n "$GH_CONTEXT" ]; then
+            full_prompt="${GH_CONTEXT}${input}"
+            GH_CONTEXT=""
+        fi
         if [ "$context_level" != "none" ]; then
             local ctx=$(gather_context "$context_level")
             if [ -n "$ctx" ]; then
-                full_prompt="Context about my system:\n${ctx}\n\nQuestion: ${input}"
+                full_prompt="Context about my system:\n${ctx}\n\nQuestion: ${full_prompt}"
             fi
         fi
         
@@ -911,6 +1229,8 @@ main() {
     local context_level="auto"
     local mode="chat"
     local prompt=""
+    local gh_pr=""
+    local gh_issue=""
     
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -993,6 +1313,15 @@ main() {
                 manage_keys "$@"
                 exit 0
                 ;;
+            --gh-pr)
+                gh_pr="${2:-current}"
+                shift
+                [ "$gh_pr" != "current" ] && shift
+                ;;
+            --gh-issue)
+                gh_issue="$2"
+                shift 2
+                ;;
             -*)
                 echo -e "${RED}Unknown option: $1${NC}"
                 echo "Try 'ask --help' for more information"
@@ -1035,6 +1364,21 @@ main() {
                         prompt="Context about my system:\n${ctx}\n\nQuestion: ${prompt}"
                     fi
                 fi
+                
+                if [ -n "$gh_pr" ]; then
+                    local gh_ctx=$(gather_github_context "pr" "$gh_pr")
+                    if [ -n "$gh_ctx" ]; then
+                        prompt="${gh_ctx}${prompt}"
+                    fi
+                fi
+                
+                if [ -n "$gh_issue" ]; then
+                    local gh_ctx=$(gather_github_context "issue" "$gh_issue")
+                    if [ -n "$gh_ctx" ]; then
+                        prompt="${gh_ctx}${prompt}"
+                    fi
+                fi
+                
                 call_api "$provider" "$model" "$prompt" "$stream" "$system_prompt" "$temperature" "$max_tokens"
                 echo ""
             else
