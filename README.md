@@ -1,15 +1,10 @@
-```bash
-            _    
-   __ _ ___| | __
-  / _` / __| |/ /
- | (_| \__ \   < 
-  \__,_|___/_|\_\
+<p align="left">
+  <img src="assets/ask_3.png" alt="ask" width="80" height="80">
+  &nbsp;&nbsp;
+  <strong style="font-size: 2.5rem;">ask.</strong> <em>don't grep. don't awk. just ask</em>
+</p>
 
-```
-
-_don't grep. don't awk. just ask_
-
-ask is a powerful AI-powered CLI tool for developers who live in the terminal. It brings multi-provider LLM support, agent capabilities, and shell-native intelligence to your fingertips.
+ask is an AI-powered CLI tool for developers who live in the terminal. It brings multi-provider LLM support, agent capabilities, and shell-native intelligence to your fingertips.
 
 ## Why ask?
 
