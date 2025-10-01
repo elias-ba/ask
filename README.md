@@ -1,6 +1,5 @@
 <p align="left">
-  <img src="assets/ask_3.png" alt="ask" width="80" height="80">
-  &nbsp;&nbsp;
+  <img src="assets/ask_3.png" alt="ask" width="50" height="50">
   <strong style="font-size: 2.5rem;">ask.</strong> <em>don't grep. don't awk. just ask</em>
 </p>
 
