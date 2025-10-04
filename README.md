@@ -347,9 +347,3 @@ MIT License - See LICENSE file
 - **GitHub**: <https://github.com/elias-ba/ask>
 - **Issues**: <https://github.com/elias-ba/ask/issues>
 - **Discussions**: <https://github.com/elias-ba/ask/discussions>
-
----
-
-**ask** - because the best interface is conversation.
-
-_don't grep. don't awk. just ask_
