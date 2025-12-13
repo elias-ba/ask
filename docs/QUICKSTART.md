@@ -52,6 +52,11 @@ Choose a provider:
 - GPT-4, GPT-3.5 models
 - Pay as you go
 
+**Google Gemini** - Get key at: <https://aistudio.google.com/apikey>
+
+- Free tier available
+- Fast and powerful models
+
 **OpenRouter** - Get key at: <https://openrouter.ai/keys>
 
 - Access to many models
@@ -199,6 +204,9 @@ git log --oneline | ask "summarize changes this week"
 ```bash
 # Fast & cheap
 ask -m gpt-4o-mini "quick question"
+
+# Google Gemini (fast & free tier)
+ask -p google -m gemini-2.5-flash "quick question"
 
 # Powerful reasoning
 ask -m claude-opus-4 "complex analysis"

@@ -38,6 +38,7 @@ get_models() {
         anthropic) echo "claude-sonnet-4-5-20250929,claude-opus-4-1-20250514,claude-4-opus-20250514" ;;
         openai) echo "gpt-4o,gpt-4o-mini,gpt-4-turbo,o1,o1-mini" ;;
         openrouter) echo "anthropic/claude-sonnet-4-5,openai/gpt-4o,google/gemini-2.0-flash-exp" ;;
+        google) echo "gemini-3-pro-preview,gemini-2.5-pro,gemini-2.5-flash,gemini-2.5-flash-lite" ;;
     esac
 }
 
@@ -47,6 +48,17 @@ get_api_url() {
         anthropic) echo "https://api.anthropic.com/v1/messages" ;;
         openai) echo "https://api.openai.com/v1/chat/completions" ;;
         openrouter) echo "https://openrouter.ai/api/v1/chat/completions" ;;
+        google) echo "https://generativelanguage.googleapis.com/v1beta/models" ;;
+    esac
+}
+
+get_default_model() {
+    local provider=$1
+    case $provider in
+        anthropic) echo "claude-sonnet-4-5-20250929" ;;
+        openai) echo "gpt-4o" ;;
+        openrouter) echo "anthropic/claude-sonnet-4-5" ;;
+        google) echo "gemini-2.5-flash" ;;
     esac
 }
 
@@ -107,7 +119,7 @@ $(echo -e "${YELLOW}USAGE:${NC}")
     ask [OPTIONS]              # Interactive mode
     
 $(echo -e "${YELLOW}OPTIONS:${NC}")
-    $(echo -e "${GREEN}-p, --provider${NC}") PROVIDER   Provider: anthropic, openai, openrouter
+    $(echo -e "${GREEN}-p, --provider${NC}") PROVIDER   Provider: anthropic, openai, openrouter, google
                                   [default: anthropic]
     $(echo -e "${GREEN}-m, --model${NC}") MODEL         Model name [default: claude-sonnet-4-5]
     $(echo -e "${GREEN}-t, --temperature${NC}") TEMP    Temperature 0.0-2.0 [default: 1.0]
@@ -151,6 +163,7 @@ $(echo -e "${YELLOW}ENVIRONMENT VARIABLES (OPTIONAL):${NC}")
     $(echo -e "${GREEN}ANTHROPIC_API_KEY${NC}")         Anthropic API key (or use: ask keys set anthropic)
     $(echo -e "${GREEN}OPENAI_API_KEY${NC}")            OpenAI API key (or use: ask keys set openai)
     $(echo -e "${GREEN}OPENROUTER_API_KEY${NC}")        OpenRouter API key (or use: ask keys set openrouter)
+    $(echo -e "${GREEN}GOOGLE_API_KEY${NC}")            Google Gemini API key (or use: ask keys set google)
     $(echo -e "${GREEN}ASK_PROVIDER${NC}")              Default provider
     $(echo -e "${GREEN}ASK_MODEL${NC}")                 Default model
 
@@ -251,7 +264,7 @@ manage_keys() {
             if [ -z "$provider" ]; then
                 echo -e "${RED}Error: Provider required${NC}"
                 echo "Usage: ask keys set <provider>"
-                echo "Providers: anthropic, openai, openrouter"
+                echo "Providers: anthropic, openai, openrouter, google"
                 return 1
             fi
             
@@ -260,9 +273,10 @@ manage_keys() {
                 anthropic) key_var="ANTHROPIC_API_KEY" ;;
                 openai) key_var="OPENAI_API_KEY" ;;
                 openrouter) key_var="OPENROUTER_API_KEY" ;;
+                google) key_var="GOOGLE_API_KEY" ;;
                 *)
                     echo -e "${RED}Unknown provider: $provider${NC}"
-                    echo "Valid providers: anthropic, openai, openrouter"
+                    echo "Valid providers: anthropic, openai, openrouter, google"
                     return 1
                     ;;
             esac
@@ -296,12 +310,13 @@ manage_keys() {
             echo -e "${CYAN}${BOLD}Configured API Keys:${NC}\n"
             
             local found=false
-            for provider_name in anthropic openai openrouter; do
+            for provider_name in anthropic openai openrouter google; do
                 local key_var=""
                 case $provider_name in
                     anthropic) key_var="ANTHROPIC_API_KEY" ;;
                     openai) key_var="OPENAI_API_KEY" ;;
                     openrouter) key_var="OPENROUTER_API_KEY" ;;
+                    google) key_var="GOOGLE_API_KEY" ;;
                 esac
                 
                 local key_value="${!key_var}"
@@ -341,6 +356,7 @@ manage_keys() {
                 anthropic) key_var="ANTHROPIC_API_KEY" ;;
                 openai) key_var="OPENAI_API_KEY" ;;
                 openrouter) key_var="OPENROUTER_API_KEY" ;;
+                google) key_var="GOOGLE_API_KEY" ;;
                 *)
                     echo -e "${RED}Unknown provider: $provider${NC}"
                     return 1
@@ -368,7 +384,7 @@ manage_keys() {
             echo "  ask keys remove <provider>  Remove API key"
             echo "  ask keys path               Show keys file location"
             echo ""
-            echo -e "${YELLOW}Providers:${NC} anthropic, openai, openrouter"
+            echo -e "${YELLOW}Providers:${NC} anthropic, openai, openrouter, google"
             ;;
     esac
 }
@@ -396,6 +412,7 @@ check_api_key() {
         anthropic) key_var="ANTHROPIC_API_KEY" ;;
         openai) key_var="OPENAI_API_KEY" ;;
         openrouter) key_var="OPENROUTER_API_KEY" ;;
+        google) key_var="GOOGLE_API_KEY" ;;
     esac
     
     if [ -z "${!key_var}" ]; then
@@ -416,6 +433,9 @@ check_api_key() {
                 ;;
             openrouter)
                 echo -e "  ${DIM}https://openrouter.ai/keys${NC}"
+                ;;
+            google)
+                echo -e "  ${DIM}https://aistudio.google.com/apikey${NC}"
                 ;;
         esac
         exit 1
@@ -783,6 +803,12 @@ handle_stream() {
                     printf "%s" "$content"
                 fi
                 ;;
+            google)
+                local text=$(echo "$line" | jq -r '.candidates[0].content.parts[0].text // empty' 2>/dev/null)
+                if [[ -n "$text" && "$text" != "null" ]]; then
+                    printf "%s" "$text"
+                fi
+                ;;
         esac
     done
     echo ""
@@ -878,6 +904,62 @@ call_api() {
                     -d "$data")
                 [ -t 1 ] && clear_thinking
                 echo "$response" | jq -r '.choices[0].message.content'
+            fi
+            ;;
+            
+        google)
+            # Convert messages from OpenAI format to Gemini format
+            # OpenAI: {"role": "user", "content": "..."} 
+            # Gemini: {"role": "user", "parts": [{"text": "..."}]}
+            # Also convert "assistant" role to "model"
+            local gemini_contents=$(echo "$messages_json" | jq '[.[] | {
+                role: (if .role == "assistant" then "model" else .role end),
+                parts: [{text: .content}]
+            }]')
+            
+            # Build the API URL with model name
+            local endpoint="generateContent"
+            [ "$stream" = "true" ] && endpoint="streamGenerateContent?alt=sse"
+            local full_url="${api_url}/${model}:${endpoint}"
+            
+            # Build request data with system_instruction
+            local data=$(jq -n \
+                --argjson contents "$gemini_contents" \
+                --arg system "$system_prompt" \
+                '{
+                    system_instruction: {
+                        parts: [{text: $system}]
+                    },
+                    contents: $contents
+                }')
+            
+            if [ "$stream" = "true" ]; then
+                [ -t 1 ] && clear_thinking
+                curl -sN "$full_url" \
+                    -H "Content-Type: application/json" \
+                    -H "x-goog-api-key: ${GOOGLE_API_KEY}" \
+                    -d "$data" | handle_stream "$provider"
+            else
+                response=$(curl -s "$full_url" \
+                    -H "Content-Type: application/json" \
+                    -H "x-goog-api-key: ${GOOGLE_API_KEY}" \
+                    -d "$data")
+                [ -t 1 ] && clear_thinking
+                
+                # Check for API errors
+                local error_msg=$(echo "$response" | jq -r '.error.message // empty' 2>/dev/null)
+                if [ -n "$error_msg" ]; then
+                    local error_code=$(echo "$response" | jq -r '.error.code // empty' 2>/dev/null)
+                    echo -e "${RED}Error from Gemini API (code $error_code):${NC}" >&2
+                    echo -e "${DIM}$error_msg${NC}" >&2
+                    if [[ "$error_msg" == *"quota"* ]] || [[ "$error_code" == "429" ]]; then
+                        echo -e "${YELLOW}Tip: gemini-3-pro and gemini-2.5-pro may require a paid plan.${NC}" >&2
+                        echo -e "${YELLOW}Try: ask -p google -m gemini-2.5-flash \"your question\"${NC}" >&2
+                    fi
+                    return 1
+                fi
+                
+                echo "$response" | jq -r '.candidates[0].content.parts[0].text'
             fi
             ;;
     esac
@@ -1221,7 +1303,8 @@ interactive_mode() {
 
 main() {
     local provider="${ASK_PROVIDER:-$DEFAULT_PROVIDER}"
-    local model="${ASK_MODEL:-$DEFAULT_MODEL}"
+    local model="${ASK_MODEL:-}"
+    local model_specified=false
     local stream="$STREAM_ENABLED"
     local temperature="$DEFAULT_TEMPERATURE"
     local max_tokens="$DEFAULT_MAX_TOKENS"
@@ -1240,6 +1323,7 @@ main() {
                 ;;
             -m|--model)
                 model="$2"
+                model_specified=true
                 shift 2
                 ;;
             -t|--temperature)
@@ -1336,6 +1420,12 @@ main() {
     
     check_dependencies
     init_config
+    
+    # Auto-select default model based on provider if not specified
+    if [ -z "$model" ] || [ "$model_specified" = false ]; then
+        model=$(get_default_model "$provider")
+    fi
+    
     check_api_key "$provider"
     
     local piped_input=""
