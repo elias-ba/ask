@@ -14,7 +14,7 @@ Unlike generic LLM CLIs, ask is built for **shell power users**:
 - **Shell-native** - Works perfectly with pipes and Unix philosophy
 - **Context-aware** - Understands git repos, recent commands, system state
 - **Fast & streaming** - Real-time responses as you type
-- **Multi-provider** - Anthropic, OpenAI, OpenRouter support
+- **Multi-provider** - Anthropic, OpenAI, Google Gemini, OpenRouter support
 - **Pure bash** - No Python, Node, or other runtimes needed
 
 ## Installation
@@ -73,6 +73,7 @@ ask keys set anthropic
 # Or for other providers
 ask keys set openai
 ask keys set openrouter
+ask keys set google
 
 # List your configured keys
 ask keys list
@@ -94,6 +95,9 @@ export ANTHROPIC_API_KEY='sk-ant-...'
 # OpenAI
 export OPENAI_API_KEY='sk-...'
 
+# Google Gemini
+export GOOGLE_API_KEY='...'
+
 # OpenRouter
 export OPENROUTER_API_KEY='sk-or-...'
 ```
@@ -104,6 +108,7 @@ Add to your `~/.bashrc` or `~/.zshrc` to persist.
 
 - **Anthropic**: <https://console.anthropic.com/>
 - **OpenAI**: <https://platform.openai.com/api-keys>
+- **Google Gemini**: <https://aistudio.google.com/apikey>
 - **OpenRouter**: <https://openrouter.ai/keys>
 
 ## Usage

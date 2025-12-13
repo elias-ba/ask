@@ -25,6 +25,7 @@ That's it! Your key is saved and ready to use.
 ask keys set anthropic
 ask keys set openai
 ask keys set openrouter
+ask keys set google
 ```
 
 You'll be prompted to enter the key securely (it won't show on screen).
@@ -39,6 +40,7 @@ ask keys list
 # ✓ anthropic: sk-ant-...xyz
 # ○ openai: not set
 # ○ openrouter: not set
+# ○ google: not set
 ```
 
 Shows masked versions of your keys for security.
@@ -76,6 +78,7 @@ The keys file is simple:
 ```bash
 ANTHROPIC_API_KEY=sk-ant-your-key-here
 OPENAI_API_KEY=sk-your-key-here
+GOOGLE_API_KEY=your-google-key-here
 ```
 
 ### Priority
@@ -291,11 +294,13 @@ ask --agent "long operation"
 ask keys set anthropic
 ask keys set openai
 ask keys set openrouter
+ask keys set google
 
 # Switch between them easily
 ask -p anthropic "query"
 ask -p openai "query"
 ask -p openrouter "query"
+ask -p google "query"
 ```
 
 ---

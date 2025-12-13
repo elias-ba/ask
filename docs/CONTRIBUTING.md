@@ -177,7 +177,7 @@ Before submitting a PR, test:
 - [ ] Function generation: `ask --fn test_fn "description"`
 - [ ] Interactive mode: `ask` then try various commands
 - [ ] Key management: `ask keys list`
-- [ ] Different providers: `-p anthropic`, `-p openai`
+- [ ] Different providers: `-p anthropic`, `-p openai`, `-p google`
 - [ ] Context levels: `--context none/min/auto/full`
 - [ ] Error handling: Invalid flags, missing API keys
 

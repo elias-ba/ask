@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Google Gemini provider support** - Native integration with Google AI Studio
+  - Models: gemini-3-pro-preview, gemini-2.5-pro, gemini-2.5-flash, gemini-2.5-flash-lite
+  - Free tier available at https://aistudio.google.com/apikey
+  - Full streaming support with SSE parsing
+  - Key management: `ask keys set google`
+
 ### Planned
 
 - Shell completion scripts (bash, zsh, fish)
@@ -20,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Initial release of ask
-- Multi-provider support (Anthropic, OpenAI, OpenRouter)
+- Multi-provider support (Anthropic, OpenAI, Google Gemini, OpenRouter)
 - Streaming responses with real-time output
 - Agent mode with risk-based command execution
 - Three-tier risk assessment (low, medium, high)
@@ -122,6 +130,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Anthropic**: Claude Sonnet 4.5, Claude Opus 4.1, Claude Opus 4
 - **OpenAI**: GPT-4o, GPT-4o-mini, GPT-4-turbo, o1, o1-mini
+- **Google Gemini**: gemini-3-pro-preview, gemini-2.5-pro, gemini-2.5-flash, gemini-2.5-flash-lite
 - **OpenRouter**: Multi-model access via unified API
 
 ## [0.9.0] - 2024-12-XX (Beta)

@@ -801,9 +801,13 @@ ask -m claude-opus-4 "design a system architecture"
 # Balanced (default)
 ask -m claude-sonnet-4-5 "explain this code"
 
+# Google Gemini (free tier available)
+ask -p google -m gemini-2.5-flash "quick analysis"
+
 # List available models
 ask --list-models
 ask -p openai --list-models
+ask -p google --list-models
 ```
 
 ### Saving Conversations
