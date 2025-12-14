@@ -26,6 +26,7 @@ ask keys set anthropic
 ask keys set openai
 ask keys set openrouter
 ask keys set google
+ask keys set deepseek
 ```
 
 You'll be prompted to enter the key securely (it won't show on screen).
@@ -41,6 +42,7 @@ ask keys list
 # ○ openai: not set
 # ○ openrouter: not set
 # ○ google: not set
+# ○ deepseek: not set
 ```
 
 Shows masked versions of your keys for security.
@@ -135,10 +137,10 @@ export ANTHROPIC_API_KEY='team-key'
 
 ### Using ask Key Management (Recommended)
 
-✅ Easier setup - no config file editing  
-✅ Secure by default (600 permissions)  
-✅ Easy to update (`ask keys set`)  
-✅ Easy to see what's configured (`ask keys list`)  
+✅ Easier setup - no config file editing
+✅ Secure by default (600 permissions)
+✅ Easy to update (`ask keys set`)
+✅ Easy to see what's configured (`ask keys list`)
 ✅ Works out of the box
 
 ```bash
@@ -148,10 +150,10 @@ ask "your question"
 
 ### Using Environment Variables (Traditional)
 
-✅ More control  
-✅ Can set in CI/CD easily  
-✅ Can scope to terminal session  
-⚠️ Need to edit shell config  
+✅ More control
+✅ Can set in CI/CD easily
+✅ Can scope to terminal session
+⚠️ Need to edit shell config
 ⚠️ Easy to forget to source
 
 ```bash
@@ -295,12 +297,14 @@ ask keys set anthropic
 ask keys set openai
 ask keys set openrouter
 ask keys set google
+ask keys set deepseek
 
 # Switch between them easily
 ask -p anthropic "query"
 ask -p openai "query"
 ask -p openrouter "query"
 ask -p google "query"
+ask -p deepseek "query"
 ```
 
 ---
