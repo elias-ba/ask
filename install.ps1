@@ -3,6 +3,8 @@
 
 $ErrorActionPreference = 'Stop'
 
+# Get download URL
+$askUrl = "https://raw.githubusercontent.com/MilkCoder26/ask/featue/ask-windows/ask.ps1"
 # Check PowerShell version
 $psVersion = $PSVersionTable.PSVersion
 if ($psVersion.Major -lt 7) {
@@ -23,7 +25,7 @@ if ($psVersion.Major -lt 7) {
     Write-Host "Or use Git Bash with the bash version:" -ForegroundColor Cyan
     Write-Host "  1. Install Git for Windows" -ForegroundColor Gray
     Write-Host "  2. Open Git Bash" -ForegroundColor Gray
-    Write-Host "  3. Run: curl -fsSL https://raw.githubusercontent.com/MilkCoder26/ask/featue/ask-windows/install.sh | bash" -ForegroundColor Blue
+    Write-Host "  3. Run: curl -fsSL https://raw.githubusercontent.com/elias-ba/ask/main/install.sh | bash" -ForegroundColor Blue
     exit 1
 }
 
@@ -41,8 +43,6 @@ Write-Host ""
 Write-Host "✅ PowerShell $($psVersion.ToString()) detected" -ForegroundColor Green
 Write-Host ""
 
-# Get download URL
-$askUrl = "https://raw.githubusercontent.com/MilkCoder26/ask/featue/ask-windows/ask.ps1"
 
 # Ask for installation directory
 Write-Host "Where should ask be installed?" -ForegroundColor Yellow
