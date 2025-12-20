@@ -34,7 +34,7 @@ main() {
     case $OS in
         linux|macos)
             echo "Run this command:"
-            echo "  curl -fsSL https://raw.githubusercontent.com/MilkCoder26/ask/main/install.sh | bash"
+            echo "  curl -fsSL https://raw.githubusercontent.com/MilkCoder26/ask/featue/ask-windows/install.sh | bash"
             echo ""
             echo "Requirements:"
             echo "  • bash 3.2+"
@@ -48,7 +48,7 @@ main() {
             echo "   Download: https://aka.ms/powershell"
             echo ""
             echo "2. Then run:"
-            echo "   irm https://raw.githubusercontent.com/MilkCoder26/ask/main/ask | iex"
+            echo "   irm https://raw.githubusercontent.com/MilkCoder26/ask/featue/ask-windows/ask | iex"
             echo ""
             echo "Or use Git Bash with Linux instructions."
             ;;
