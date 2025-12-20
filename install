@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# ask installer - OS detection only
+
+set -e
+
+show_banner() {
+    echo '            _    '
+    echo '   __ _ ___| | __'
+    echo '  / _` / __| |/ /'
+    echo ' | (_| \__ \   < '
+    echo '  \__,_|___/_|\_\'
+    echo ''
+    echo 'ask - ai powered shell assistant'
+    echo 'don'\''t grep. don'\''t awk. just ask'
+    echo ''
+}
+
+detect_os() {
+    case "$(uname -s)" in
+        Linux*)     echo "linux" ;;
+        Darwin*)    echo "macos" ;;
+        CYGWIN*|MINGW*|MSYS*) echo "windows" ;;
+        *)          echo "unknown" ;;
+    esac
+}
+
+main() {
+    show_banner
+    
+    OS=$(detect_os)
+    echo "Detected: $OS"
+    echo ""
+    
+    case $OS in
+        linux|macos)
+            echo "Run this command:"
+            echo "  curl -fsSL https://raw.githubusercontent.com/MilkCoder26/ask/main/install.sh | bash"
+            echo ""
+            echo "Requirements:"
+            echo "  • bash 3.2+"
+            echo "  • curl"
+            echo "  • jq"
+            ;;
+        windows)
+            echo "Windows users:"
+            echo ""
+            echo "1. Ensure you have PowerShell 7+ (NOT 5.1)"
+            echo "   Download: https://aka.ms/powershell"
+            echo ""
+            echo "2. Then run:"
+            echo "   irm https://raw.githubusercontent.com/MilkCoder26/ask/main/ask | iex"
+            echo ""
+            echo "Or use Git Bash with Linux instructions."
+            ;;
+        *)
+            echo "Visit: https://elias-ba.github.io/ask/ for manual installation"
+            ;;
+    esac
+    
+    echo ""
+    echo "Documentation: https://elias-ba.github.io/ask/"
+    echo "GitHub: https://github.com/elias-ba/ask"
+}
+
+main "$@"
