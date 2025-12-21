@@ -26,6 +26,9 @@ FUNCTIONS_FILE="$CONFIG_DIR/functions.sh"
 CONTEXT_FILE="$CACHE_DIR/context.json"
 KEYS_FILE="$CONFIG_DIR/keys.env"
 
+# Command execution settings
+COMMAND_TIMEOUT=30  # seconds
+
 DEFAULT_PROVIDER="anthropic"
 DEFAULT_MODEL="claude-sonnet-4-5-20250929"
 DEFAULT_TEMPERATURE="1.0"
@@ -80,6 +83,72 @@ CONVERSATION_JSON=""
 
 RENDER_MODE="$DEFAULT_RENDER"
 
+# Spinner state
+SPINNER_PID=""
+API_PID=""
+THINKING_START_TIME=0
+TOKEN_COUNT=0
+REQUEST_CANCELLED=false
+
+# Animated spinner with info and escape detection
+start_spinner() {
+    local model_info="${1:-}"
+    THINKING_START_TIME=$(date +%s)
+
+    # Spinner characters
+    local frames=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+    local frame_count=${#frames[@]}
+    local i=0
+
+    # Set terminal to raw mode for keypress detection
+    stty -echo -icanon min 0 time 1 2>/dev/null
+
+    while true; do
+        local elapsed=$(($(date +%s) - THINKING_START_TIME))
+        printf "\r${DIM}%s${NC} ${CYAN}Thinking...${NC} ${DIM}%ds · %s · Esc to cancel${NC}    " \
+            "${frames[$i]}" "$elapsed" "$model_info" >&2
+        i=$(( (i + 1) % frame_count ))
+
+        # Check for Escape key (27)
+        local key
+        key=$(dd bs=1 count=1 2>/dev/null)
+        if [ "$key" = $'\x1b' ]; then
+            # Escape pressed - signal cancellation
+            echo "CANCELLED" >&1
+            break
+        fi
+
+        sleep 0.08
+    done
+
+    # Restore terminal
+    stty echo icanon 2>/dev/null
+}
+
+stop_spinner() {
+    if [ -n "$SPINNER_PID" ] && kill -0 "$SPINNER_PID" 2>/dev/null; then
+        kill "$SPINNER_PID" 2>/dev/null
+        wait "$SPINNER_PID" 2>/dev/null
+    fi
+    SPINNER_PID=""
+    # Restore terminal settings
+    stty echo icanon 2>/dev/null
+    printf "\r\033[K" >&2
+}
+
+# Kill API request
+cancel_request() {
+    REQUEST_CANCELLED=true
+    stop_spinner
+    if [ -n "$API_PID" ] && kill -0 "$API_PID" 2>/dev/null; then
+        kill "$API_PID" 2>/dev/null
+        wait "$API_PID" 2>/dev/null
+    fi
+    API_PID=""
+    printf "\r\033[K${DIM}Request cancelled${NC}\n" >&2
+}
+
+# Legacy functions for non-interactive use
 show_thinking() {
     if [ -t 1 ]; then
         THINKING_START_TIME=$(date +%s)
@@ -794,9 +863,18 @@ EOF
     esac
 }
 
+# Global to capture streamed response
+STREAM_BUFFER=""
+STREAM_STARTED=false
+STREAM_TOKEN_COUNT=0
+STREAM_SIGNAL_FILE=""
+
 handle_stream() {
     local provider=$1
-    local token_count=0
+    local capture=${2:-false}
+    STREAM_BUFFER=""
+    STREAM_STARTED=false
+    STREAM_TOKEN_COUNT=0
     local start_time=$(date +%s)
 
     while IFS= read -r line; do
@@ -814,16 +892,28 @@ handle_stream() {
                 if [[ "$type" == "content_block_delta" ]]; then
                     local text=$(echo "$line" | jq -r '.delta.text // empty' 2>/dev/null)
                     if [[ -n "$text" && "$text" != "null" ]]; then
-                        printf "%s" "$text"
-                        token_count=$((token_count + $(echo "$text" | wc -w)))
+                        if [ "$STREAM_STARTED" = false ]; then
+                            [ -n "$STREAM_SIGNAL_FILE" ] && echo "STARTED" > "$STREAM_SIGNAL_FILE"
+                            printf "\r\033[K" >&2
+                            STREAM_STARTED=true
+                        fi
+                        printf "%s" "$text" >&2
+                        [ "$capture" = true ] && STREAM_BUFFER+="$text"
+                        STREAM_TOKEN_COUNT=$((STREAM_TOKEN_COUNT + $(echo "$text" | wc -w)))
                     fi
                 fi
                 ;;
             openai|openrouter|deepseek)
                 local content=$(echo "$line" | jq -r '.choices[0].delta.content // empty' 2>/dev/null)
                 if [[ -n "$content" && "$content" != "null" ]]; then
-                    printf "%s" "$content"
-                    token_count=$((token_count + $(echo "$content" | wc -w)))
+                    if [ "$STREAM_STARTED" = false ]; then
+                        [ -n "$STREAM_SIGNAL_FILE" ] && echo "STARTED" > "$STREAM_SIGNAL_FILE"
+                        printf "\r\033[K" >&2
+                        STREAM_STARTED=true
+                    fi
+                    printf "%s" "$content" >&2
+                    [ "$capture" = true ] && STREAM_BUFFER+="$content"
+                    STREAM_TOKEN_COUNT=$((STREAM_TOKEN_COUNT + $(echo "$content" | wc -w)))
                 fi
                 ;;
             google)
@@ -836,12 +926,17 @@ handle_stream() {
         esac
     done
 
-    # Show stats
-    local elapsed=$(($(date +%s) - start_time))
-    [ $elapsed -eq 0 ] && elapsed=1
-    local tps=$((token_count / elapsed))
-    echo ""
-    echo -e "${DIM}↳ Done · ${token_count} tokens · ${elapsed}s · ~${tps} tok/s${NC}" >&2
+    # Show stats after streaming
+    if [ "$STREAM_STARTED" = true ]; then
+        local elapsed=$(($(date +%s) - start_time))
+        [ $elapsed -eq 0 ] && elapsed=1
+        local tps=$((STREAM_TOKEN_COUNT / elapsed))
+        echo "" >&2
+        echo -e "${DIM}↳ Done · ${STREAM_TOKEN_COUNT} tokens · ${elapsed}s · ~${tps} tok/s${NC}" >&2
+    fi
+
+    # Output captured content if requested
+    [ "$capture" = true ] && echo "$STREAM_BUFFER"
 }
 
 call_api() {
@@ -852,6 +947,7 @@ call_api() {
     local system_prompt=${5:-"You are a helpful AI assistant for the command line. Provide concise, accurate answers. When writing code or commands, ensure they are correct and safe."}
     local temperature=${6:-1.0}
     local max_tokens=${7:-4096}
+    local capture=${8:-false}
 
     local api_url=$(get_api_url "$provider")
     local response=""
@@ -886,7 +982,7 @@ call_api() {
                     -H "Content-Type: application/json" \
                     -H "x-api-key: ${ANTHROPIC_API_KEY}" \
                     -H "anthropic-version: 2023-06-01" \
-                    -d "$data" | handle_stream "$provider"
+                    -d "$data" | handle_stream "$provider" "$capture"
             else
                 response=$(curl -s "$api_url" \
                     -H "Content-Type: application/json" \
@@ -927,7 +1023,7 @@ call_api() {
                 curl -sN "$api_url" \
                     -H "Content-Type: application/json" \
                     -H "$key_header" \
-                    -d "$data" | handle_stream "$provider"
+                    -d "$data" | handle_stream "$provider" "$capture"
             else
                 response=$(curl -s "$api_url" \
                     -H "Content-Type: application/json" \
@@ -1224,6 +1320,142 @@ load_history() {
     fi
 }
 
+# Interactive system prompt that enables command execution
+INTERACTIVE_SYSTEM_PROMPT="You are a helpful AI assistant for the command line. You can help users by running shell commands.
+
+When you need to run a command to help the user, wrap it in <cmd> tags like this:
+<cmd>ls -la</cmd>
+
+Rules for commands:
+- Only suggest commands when the user asks you to DO something (not just explain)
+- One command per <cmd> tag
+- Use safe, non-destructive commands when possible
+- For dangerous commands (rm, dd, etc), warn the user first
+- After commands run, you will receive their output and should continue analyzing
+- Keep working until the task is complete - don't stop after just suggesting commands
+- When you have all the info needed, provide your final analysis/answer without any <cmd> tags
+
+Example flow:
+User: what's using my disk space?
+Assistant: Let me check your disk usage.
+<cmd>df -h</cmd>
+<cmd>du -sh /* 2>/dev/null | sort -hr | head -10</cmd>
+
+[Commands run, output provided back to you]"
+
+# Session permission for auto-executing commands
+AUTO_EXECUTE_COMMANDS=false
+LAST_COMMAND_OUTPUT=""
+COLLECTED_OUTPUTS=""
+
+# Execute command with user confirmation and timeout
+run_command_interactive() {
+    local cmd="$1"
+    local confirm=""
+
+    # Validate command - skip if malformed
+    if [ -z "$cmd" ] || [[ "$cmd" =~ ^[[:space:]]*$ ]]; then
+        return 1
+    fi
+
+    echo "" >&2
+
+    if [ "$AUTO_EXECUTE_COMMANDS" = true ]; then
+        echo -e "${DIM}\$${NC} ${cmd}" >&2
+        confirm="y"
+    else
+        echo -e "${DIM}\$${NC} ${cmd}" >&2
+        echo -ne "${DIM}yes [y], always [a], no [n]:${NC} " >&2
+        read -r confirm </dev/tty
+    fi
+
+    case $confirm in
+        a|A)
+            AUTO_EXECUTE_COMMANDS=true
+            echo -e "${DIM}(auto-run enabled)${NC}" >&2
+            confirm="y"
+            ;;
+    esac
+
+    case $confirm in
+        y|Y|"")
+            local output
+            local exit_code
+
+            # Use timeout if available
+            if command -v timeout &>/dev/null; then
+                output=$(timeout "${COMMAND_TIMEOUT}s" bash -c "$cmd" 2>&1)
+                exit_code=$?
+                if [ $exit_code -eq 124 ]; then
+                    echo -e "${YELLOW}command timed out after ${COMMAND_TIMEOUT}s${NC}" >&2
+                    return 1
+                fi
+            else
+                output=$(eval "$cmd" 2>&1)
+                exit_code=$?
+            fi
+
+            LAST_COMMAND_OUTPUT="$output"
+            COLLECTED_OUTPUTS="${COLLECTED_OUTPUTS}\n\$ ${cmd}\n${output}"
+            [ -n "$output" ] && echo "$output" >&2
+
+            if [ $exit_code -ne 0 ]; then
+                echo -e "${RED}exit: ${exit_code}${NC}" >&2
+            fi
+            ;;
+        *)
+            echo -e "${DIM}skipped${NC}" >&2
+            COLLECTED_OUTPUTS="${COLLECTED_OUTPUTS}\n\$ ${cmd}\n[skipped by user]"
+            ;;
+    esac
+}
+
+# Process response and handle any commands (including text between multiple commands)
+process_response() {
+    local response="$1"
+    local remaining="$response"
+
+    # Check if response contains commands
+    if ! echo "$response" | grep -q '<cmd>'; then
+        echo "$response"
+        return
+    fi
+
+    # Process each segment: text, then command, then text, etc.
+    while [[ "$remaining" == *"<cmd>"* ]]; do
+        # Get text before <cmd>
+        local before="${remaining%%<cmd>*}"
+        before=$(echo "$before" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        [ -n "$before" ] && echo "$before"
+
+        # Remove the before part and opening tag
+        remaining="${remaining#*<cmd>}"
+
+        # Check for closing tag
+        if [[ "$remaining" == *"</cmd>"* ]]; then
+            # Extract command
+            local cmd="${remaining%%</cmd>*}"
+            cmd=$(echo "$cmd" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+            # Run command if valid
+            if [ -n "$cmd" ]; then
+                run_command_interactive "$cmd"
+            fi
+
+            # Move past closing tag
+            remaining="${remaining#*</cmd>}"
+        else
+            # Malformed: no closing tag
+            echo -e "${YELLOW}(malformed command tag, skipping)${NC}" >&2
+            break
+        fi
+    done
+
+    # Print any remaining text after last command
+    remaining=$(echo "$remaining" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    [ -n "$remaining" ] && echo "$remaining"
+}
+
 interactive_mode() {
     local provider=$1
     local model=$2
@@ -1241,6 +1473,16 @@ interactive_mode() {
         history -r "$READLINE_HISTORY"
     fi
 
+    # Save history and cleanup on exit
+    cleanup_interactive() {
+        stop_spinner
+        echo ""
+        history -w "$READLINE_HISTORY"
+        echo -e "${CYAN}Goodbye!${NC}"
+        exit 0
+    }
+    trap cleanup_interactive SIGINT SIGTERM
+
     show_welcome "$model_short"
 
     while true; do
@@ -1249,7 +1491,7 @@ interactive_mode() {
             history -s "$input"
             history -w "$READLINE_HISTORY"
         fi
-
+        
         case $input in
             /exit|/quit|exit|quit)
                 history -w "$READLINE_HISTORY"
@@ -1326,18 +1568,124 @@ interactive_mode() {
         [ -z "$CONVERSATION_JSON" ] && CONVERSATION_JSON='[]'
         CONVERSATION_JSON=$(echo "$CONVERSATION_JSON" | jq ". + [{\"role\":\"user\",\"content\":$(echo "$full_prompt" | jq -Rs .)}]")
 
-        if [ "$stream" = "true" ]; then
-            call_api "$provider" "$model" "$full_prompt" "$stream" "" "" ""
-            echo ""
-            CONVERSATION_JSON=$(echo "$CONVERSATION_JSON" | jq ". + [{\"role\":\"assistant\",\"content\":\"[Response streamed]\"}]")
-        else
-            local response=$(call_api "$provider" "$model" "$full_prompt" "$stream" "" "" "")
-            if [ -n "$response" ]; then
-                echo "$response"
-                echo ""
-                CONVERSATION_JSON=$(echo "$CONVERSATION_JSON" | jq ". + [{\"role\":\"assistant\",\"content\":$(echo "$response" | jq -Rs .)}]")
-            fi
+        # Setup for cancellable request
+        REQUEST_CANCELLED=false
+        local spinner_model="${model##*/}"
+        spinner_model="${spinner_model%-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]}"
+        local tmp_response=$(mktemp)
+        local tmp_signal=$(mktemp)
+        export STREAM_SIGNAL_FILE="$tmp_signal"
+
+        # Run API call in background (stdout=capture to file, stderr=display to terminal)
+        call_api "$provider" "$model" "$full_prompt" "true" "$INTERACTIVE_SYSTEM_PROMPT" "" "" "true" > "$tmp_response" &
+        API_PID=$!
+
+        # Run spinner with escape detection (stops when streaming starts or Escape pressed)
+        (
+            local frames=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+            local frame_count=${#frames[@]}
+            local i=0
+            local start_time=$(date +%s)
+
+            stty -echo -icanon min 0 time 1 2>/dev/null
+
+            while kill -0 $API_PID 2>/dev/null; do
+                # Check if streaming started
+                if [ -f "$tmp_signal" ] && grep -q "STARTED" "$tmp_signal" 2>/dev/null; then
+                    break
+                fi
+
+                local elapsed=$(($(date +%s) - start_time))
+                printf "\r${DIM}%s Thinking... %ds · %s · Esc to cancel${NC}    " \
+                    "${frames[$i]}" "$elapsed" "$spinner_model" >&2
+                i=$(( (i + 1) % frame_count ))
+
+                # Check for Escape key
+                local key
+                key=$(dd bs=1 count=1 2>/dev/null)
+                if [ "$key" = $'\x1b' ]; then
+                    echo "CANCELLED" > "$tmp_signal"
+                    kill $API_PID 2>/dev/null
+                    stty echo icanon 2>/dev/null
+                    printf "\r\033[K" >&2
+                    exit 1
+                fi
+                sleep 0.08
+            done
+
+            stty echo icanon 2>/dev/null
+        )
+
+        # Check if cancelled
+        if [ -f "$tmp_signal" ] && grep -q "CANCELLED" "$tmp_signal" 2>/dev/null; then
+            REQUEST_CANCELLED=true
+            echo -e "${DIM}Request cancelled${NC}" >&2
+            rm -f "$tmp_response" "$tmp_signal"
+            continue
         fi
+
+        # Wait for API to complete and get response
+        wait $API_PID 2>/dev/null
+        local response=$(cat "$tmp_response" 2>/dev/null)
+        rm -f "$tmp_response" "$tmp_signal"
+
+        # Agent loop: run commands and feed results back until no more commands
+        while [ -n "$response" ]; do
+            CONVERSATION_JSON=$(echo "$CONVERSATION_JSON" | jq ". + [{\"role\":\"assistant\",\"content\":$(echo "$response" | jq -Rs .)}]")
+
+            # Check for commands in the response
+            if ! echo "$response" | grep -q '<cmd>'; then
+                break  # No commands, done
+            fi
+
+            # Extract and run all commands, collect outputs
+            COLLECTED_OUTPUTS=""
+            local remaining="$response"
+            local has_commands=false
+
+            while [[ "$remaining" == *"<cmd>"* ]]; do
+                remaining="${remaining#*<cmd>}"
+                if [[ "$remaining" == *"</cmd>"* ]]; then
+                    local cmd="${remaining%%</cmd>*}"
+                    cmd=$(echo "$cmd" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+                    if [ -n "$cmd" ]; then
+                        run_command_interactive "$cmd"
+                        has_commands=true
+                    fi
+                    remaining="${remaining#*</cmd>}"
+                else
+                    echo -e "${YELLOW}(malformed command tag)${NC}" >&2
+                    break
+                fi
+            done
+
+            # If no commands were run or user cancelled all, stop
+            [ "$has_commands" = false ] && break
+            [ -z "$COLLECTED_OUTPUTS" ] && break
+
+            # Feed command outputs back to AI for continued analysis
+            echo "" >&2
+            echo -e "${DIM}Analyzing results...${NC}" >&2
+
+            local follow_up="Here are the command outputs:${COLLECTED_OUTPUTS}
+
+Based on these results, continue your analysis. If you need more information, run more commands. If you have enough information, provide your final answer without any <cmd> tags."
+
+            CONVERSATION_JSON=$(echo "$CONVERSATION_JSON" | jq ". + [{\"role\":\"user\",\"content\":$(echo "$follow_up" | jq -Rs .)}]")
+
+            # Get next response from AI
+            tmp_response=$(mktemp)
+            tmp_signal=$(mktemp)
+            export STREAM_SIGNAL_FILE="$tmp_signal"
+
+            call_api "$provider" "$model" "$follow_up" "true" "$INTERACTIVE_SYSTEM_PROMPT" "" "" "true" > "$tmp_response" &
+            API_PID=$!
+
+            # Simple wait (no spinner for follow-up)
+            wait $API_PID 2>/dev/null
+            response=$(cat "$tmp_response" 2>/dev/null)
+            rm -f "$tmp_response" "$tmp_signal"
+        done
 
         local msg_count=$(echo "$CONVERSATION_JSON" | jq 'length')
         if [ "$msg_count" -gt $((MAX_HISTORY * 2)) ]; then
