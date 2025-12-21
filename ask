@@ -788,7 +788,8 @@ EOF
 
 handle_stream() {
     local provider=$1
-    local buffer=""
+    local token_count=0
+    local start_time=$(date +%s)
 
     while IFS= read -r line; do
         [[ -z "$line" ]] && continue
@@ -806,6 +807,7 @@ handle_stream() {
                     local text=$(echo "$line" | jq -r '.delta.text // empty' 2>/dev/null)
                     if [[ -n "$text" && "$text" != "null" ]]; then
                         printf "%s" "$text"
+                        token_count=$((token_count + $(echo "$text" | wc -w)))
                     fi
                 fi
                 ;;
@@ -813,17 +815,25 @@ handle_stream() {
                 local content=$(echo "$line" | jq -r '.choices[0].delta.content // empty' 2>/dev/null)
                 if [[ -n "$content" && "$content" != "null" ]]; then
                     printf "%s" "$content"
+                    token_count=$((token_count + $(echo "$content" | wc -w)))
                 fi
                 ;;
             google)
                 local text=$(echo "$line" | jq -r '.candidates[0].content.parts[0].text // empty' 2>/dev/null)
                 if [[ -n "$text" && "$text" != "null" ]]; then
                     printf "%s" "$text"
+                    token_count=$((token_count + $(echo "$text" | wc -w)))
                 fi
                 ;;
         esac
     done
+
+    # Show stats
+    local elapsed=$(($(date +%s) - start_time))
+    [ $elapsed -eq 0 ] && elapsed=1
+    local tps=$((token_count / elapsed))
     echo ""
+    echo -e "${DIM}↳ Done · ${token_count} tokens · ${elapsed}s · ~${tps} tok/s${NC}" >&2
 }
 
 call_api() {
