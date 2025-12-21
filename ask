@@ -21,6 +21,7 @@ fi
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/ask"
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/ask"
 HISTORY_FILE="$CACHE_DIR/history.jsonl"
+READLINE_HISTORY="$CACHE_DIR/readline_history"
 FUNCTIONS_FILE="$CONFIG_DIR/functions.sh"
 CONTEXT_FILE="$CACHE_DIR/context.json"
 KEYS_FILE="$CONFIG_DIR/keys.env"
@@ -1213,17 +1214,26 @@ interactive_mode() {
 
     GH_CONTEXT=""
 
+    # Load readline history
+    if [ -f "$READLINE_HISTORY" ]; then
+        history -r "$READLINE_HISTORY"
+    fi
+
     show_banner
     echo -e "${DIM}Provider: ${GREEN}${provider}${NC}${DIM} | Model: ${GREEN}${model}${NC}"
     echo -e "${DIM}Streaming: ${GREEN}${stream}${NC}${DIM} | Context: ${GREEN}${context_level}${NC}\n"
     echo -e "${YELLOW}Type your message (or /help for commands)${NC}\n"
 
     while true; do
-        echo -ne "${BLUE}ask>${NC} "
-        read -r input
+        read -erp $'\033[34mask>\033[0m ' input
+        if [ -n "$input" ]; then
+            history -s "$input"
+            history -w "$READLINE_HISTORY"
+        fi
 
         case $input in
             /exit|/quit|exit|quit)
+                history -w "$READLINE_HISTORY"
                 echo -e "${CYAN}Goodbye!${NC}"
                 exit 0
                 ;;
