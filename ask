@@ -113,6 +113,14 @@ don't grep. don't awk. just ask
 EOF
 }
 
+show_welcome() {
+    local model_short=$1
+    local cwd=$(pwd)
+    cwd="${cwd/#$HOME/~}"
+    [ ${#cwd} -gt 40 ] && cwd="...${cwd: -37}"
+    echo -e "${BOLD}ask${NC} ${DIM}v${VERSION} · ${model_short} · ${cwd}${NC}"
+}
+
 show_help() {
     cat <<EOF
 $(echo -e "${CYAN}${BOLD}ask${NC}") - v${VERSION}
@@ -1222,6 +1230,10 @@ interactive_mode() {
     local stream=$3
     local context_level=$4
 
+    # Short model name for prompt (strip path and date suffix)
+    local model_short="${model##*/}"
+    model_short="${model_short%-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]}"
+
     GH_CONTEXT=""
 
     # Load readline history
@@ -1229,13 +1241,10 @@ interactive_mode() {
         history -r "$READLINE_HISTORY"
     fi
 
-    show_banner
-    echo -e "${DIM}Provider: ${GREEN}${provider}${NC}${DIM} | Model: ${GREEN}${model}${NC}"
-    echo -e "${DIM}Streaming: ${GREEN}${stream}${NC}${DIM} | Context: ${GREEN}${context_level}${NC}\n"
-    echo -e "${YELLOW}Type your message (or /help for commands)${NC}\n"
+    show_welcome "$model_short"
 
     while true; do
-        read -erp $'\033[34mask>\033[0m ' input
+        read -erp $'\033[36mask\033[0m > ' input
         if [ -n "$input" ]; then
             history -s "$input"
             history -w "$READLINE_HISTORY"
@@ -1279,8 +1288,12 @@ interactive_mode() {
             /switch*)
                 read -r _ new_provider new_model <<< "$input"
                 [ -n "$new_provider" ] && provider="$new_provider" && check_api_key "$provider"
-                [ -n "$new_model" ] && model="$new_model"
-                echo -e "${GREEN}✓ Switched to ${provider}/${model}${NC}"
+                if [ -n "$new_model" ]; then
+                    model="$new_model"
+                    model_short="${model##*/}"
+                    model_short="${model_short%-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]}"
+                fi
+                echo -e "${GREEN}✓ Switched to ${provider}/${model_short}${NC}"
                 continue
                 ;;
             /context*)
