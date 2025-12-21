@@ -3,9 +3,9 @@
 
 $ErrorActionPreference = 'Stop'
 
-# Get download URL
-$askUrl = "https://raw.githubusercontent.com/MilkCoder26/ask/featue/ask-windows/ask.ps1"
-# Check PowerShell version
+
+$askUrl = "https://raw.githubusercontent.com/elias-ba/ask/main/ask.ps1"
+
 $psVersion = $PSVersionTable.PSVersion
 if ($psVersion.Major -lt 7) {
     Write-Host "========================================================" -ForegroundColor Red
@@ -67,7 +67,7 @@ $installDir = if ($choice -eq "2") {
     $userScripts
 }
 
-# Download ask.ps1
+
 $askPath = Join-Path $installDir "ask.ps1"
 Write-Host ""
 Write-Host "📥 Downloading ask.ps1..." -ForegroundColor Yellow
@@ -80,7 +80,7 @@ try {
     exit 1
 }
 
-# Add to PATH
+
 Write-Host ""
 Write-Host "🛤️  Adding to PATH..." -ForegroundColor Yellow
 
@@ -92,7 +92,7 @@ if ($currentPath -notmatch [Regex]::Escape($installDir)) {
     Write-Host "✓ Already in PATH" -ForegroundColor Green
 }
 
-# Instructions
+
 Write-Host ""
 Write-Host "==========================================" -ForegroundColor Green
 Write-Host "✅ INSTALLATION COMPLETE" -ForegroundColor Green
@@ -111,14 +111,3 @@ Write-Host ""
 Write-Host ""
 Write-Host "Documentation: https://elias-ba.github.io/ask/" -ForegroundColor Blue
 Write-Host "GitHub: https://github.com/elias-ba/ask" -ForegroundColor Blue
-
-# # Optional: Create simple function in current session
-# Write-Host ""
-# $createAlias = Read-Host "Create temporary alias 'ask' for this session? [y/N]"
-# if ($createAlias -match '^[Yy]') {
-#     function global:ask {
-#         & $askPath @args
-#     }
-#     Write-Host "✓ Alias created for this session: 'ask'" -ForegroundColor Green
-#     Write-Host "  Test: ask 'hello'" -ForegroundColor Cyan
-# }

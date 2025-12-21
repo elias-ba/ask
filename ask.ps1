@@ -20,7 +20,6 @@ param(
     [ValidateSet("none","min","auto","full")]
     [string]$Context = "auto",
 
-    [switch]$NoStream,
     [string]$SystemPrompt
 )
 
@@ -268,7 +267,7 @@ function Get-APIUrl {
 }
 
 # List available models
-function get_models {
+function Get_models {
     param($provider)
     
     Write-Host "Available models for $provider :" -ForegroundColor Cyan
@@ -350,7 +349,6 @@ function Call-API {
         $provider,
         $model,
         $prompt,
-        $stream = $false,
         $systemPrompt = "You are a helpful AI assistant for the command line. Provide concise, accurate answers. When writing code or commands, ensure they are correct and safe.",
         $temperature = 1.0,
         $maxTokens = 4096
@@ -359,10 +357,6 @@ function Call-API {
     $apiUrl = Get-APIUrl $provider
     $response = ""
     
-    # Show thinking indicator for non-streaming
-    if ($stream -eq $false) {
-        Write-Host "Thinking..." -NoNewline -ForegroundColor Cyan
-    }
     
     try {
         if ($provider -eq "anthropic") {
@@ -383,9 +377,7 @@ function Call-API {
             } | ConvertTo-Json -Depth 10
             
             $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Headers $headers -Body $body
-            if ($stream -eq $false) {
-                Write-Host "`r$(' ' * 20)`r" -NoNewline
-            }
+          
             return $response.content[0].text
         }
         elseif ($provider -eq "openai") {
@@ -414,9 +406,7 @@ function Call-API {
             } | ConvertTo-Json -Depth 10
             
             $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Headers $headers -Body $body
-            if ($stream -eq $false) {
-                Write-Host "`r$(' ' * 20)`r" -NoNewline
-            }
+        
             return $response.choices[0].message.content
         }
         elseif ($provider -eq "openrouter") {
@@ -445,9 +435,7 @@ function Call-API {
             } | ConvertTo-Json -Depth 10
             
             $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Headers $headers -Body $body
-            if ($stream -eq $false) {
-                Write-Host "`r$(' ' * 20)`r" -NoNewline
-            }
+           
             return $response.choices[0].message.content
         }
         elseif ($provider -eq "google") {
@@ -485,9 +473,6 @@ function Call-API {
                 return $null
             }
             
-            if ($stream -eq $false) {
-                Write-Host "`r$(' ' * 20)`r" -NoNewline
-            }
             return $response.candidates[0].content.parts[0].text
         }
         elseif ($provider -eq "deepseek") {
@@ -516,9 +501,7 @@ function Call-API {
             } | ConvertTo-Json -Depth 10
             
             $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Headers $headers -Body $body
-            if ($stream -eq $false) {
-                Write-Host "`r$(' ' * 20)`r" -NoNewline
-            }
+        
             return $response.choices[0].message.content
         }
     }
@@ -568,7 +551,6 @@ function Call-API {
 
 }
 
-# Show help
 function Show-Help {
     Write-Host "ask - v$VERSION" -ForegroundColor Cyan
     Write-Host "AI-powered shell assistant for PowerShell" -ForegroundColor Cyan
@@ -645,18 +627,18 @@ function Main {
     }
     
     # Get prompt from arguments if not provided via -Prompt
-    $userPrompt = $Prompt
+    $userPrompt = ""
     if ([string]::IsNullOrEmpty($userPrompt) -and $Arguments.Count -gt 0) {
         $userPrompt = $Arguments -join " "
     }
     
-    # Check for piped input
+
     $pipedInput = ""
     if ($PipelineInput) {
     $pipedInput = $PipelineInput | Out-String
     }
     
-    # Combine piped input with prompt
+
     if (-not [string]::IsNullOrEmpty($pipedInput)) {
         if (-not [string]::IsNullOrEmpty($userPrompt)) {
             $userPrompt = "Input:`n$pipedInput`n`nQuestion: $userPrompt"
@@ -675,9 +657,9 @@ function Main {
     
     # Call API
     if (-not [string]::IsNullOrEmpty($userPrompt)) {
-        $stream = -not $NoStream
+        
         $response = Call-API -Provider $Provider -Model $Model -Prompt $userPrompt `
-            -Stream $stream -SystemPrompt $SystemPrompt
+             -SystemPrompt $SystemPrompt
         
         if ($response) {
             Write-Host $response
