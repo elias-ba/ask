@@ -342,8 +342,12 @@
           <h2 class="section-title">Quick Install</h2>
 
           <div class="code-block">
-            <pre><code><span class="comment"># One-line installation</span>
+            <pre><code><span class="comment"># macOS / Linux (bash)</span>
 curl -fsSL https://raw.githubusercontent.com/elias-ba/ask/main/install.sh | bash
+
+<span class="comment"># Windows (PowerShell 7+)</span>
+pwsh -NoProfile -Command `
+  "iwr https://raw.githubusercontent.com/elias-ba/ask/main/install.ps1 -UseBasicParsing | iex"
 
 <span class="comment"># Set up your API key</span>
 ask keys set anthropic
@@ -359,7 +363,8 @@ ask <span class="string">"how do I find large files?"</span></code></pre>
               margin-top: 2rem;
             "
           >
-            Requires bash 3.x+, curl, and jq
+            macOS / Linux: bash 3.x+, curl, jq<br />
+            Windows: PowerShell 7+
           </p>
         </div>
       </section>
