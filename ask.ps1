@@ -34,7 +34,7 @@ $KEYS_FILE = "$CONFIG_DIR\keys.env"
 # Defaults
 $DEFAULT_PROVIDER = "anthropic"
 $DEFAULT_MODELS = @{
-    anthropic = "claude-3-sonnet-20240229"
+    anthropic = "claude-sonnet-4-5-20250929"
     openai = "gpt-4o"
     openrouter = "anthropic/claude-sonnet-4-5"
     google = "gemini-2.5-flash"
@@ -267,26 +267,26 @@ function Get-APIUrl {
 }
 
 # List available models
-function Get_models {
+function Get-Models {
     param($provider)
-    
+
     Write-Host "Available models for $provider :" -ForegroundColor Cyan
-    
+
     $models = @()
-    if ($provider -eq "anthropic") { 
-        $models = @("claude-3-sonnet-20240229", "claude-3-opus-20240229", "claude-3-haiku-20240307") 
+    if ($provider -eq "anthropic") {
+        $models = @("claude-sonnet-4-5-20250929", "claude-opus-4-1-20250514", "claude-4-opus-20250514")
     }
-    elseif ($provider -eq "openai") { 
-        $models = @("gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "o1", "o1-mini") 
+    elseif ($provider -eq "openai") {
+        $models = @("gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "o1", "o1-mini")
     }
-    elseif ($provider -eq "openrouter") { 
-        $models = @("anthropic/claude-3-sonnet", "openai/gpt-4o", "google/gemini-2.0-flash-exp") 
+    elseif ($provider -eq "openrouter") {
+        $models = @("anthropic/claude-sonnet-4-5", "openai/gpt-4o", "google/gemini-2.0-flash-exp")
     }
-    elseif ($provider -eq "google") { 
-        $models = @("gemini-2.5-flash", "gemini-2.5-flash-lite") 
+    elseif ($provider -eq "google") {
+        $models = @("gemini-3-pro-preview", "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite")
     }
-    elseif ($provider -eq "deepseek") { 
-        $models = @("deepseek-chat", "deepseek-coder", "deepseek-reasoner") 
+    elseif ($provider -eq "deepseek") {
+        $models = @("deepseek-chat", "deepseek-coder", "deepseek-reasoner")
     }
     
     $models | ForEach-Object {
@@ -565,7 +565,6 @@ function Show-Help {
     Write-Host "                              [default: anthropic]"
     Write-Host "    -Model MODEL         Model name"
     Write-Host "    -Context LEVEL       Context level: none, min, auto, full [default: auto]"
-    Write-Host "    -NoStream            Disable streaming"
     Write-Host "    -SystemPrompt TEXT   Custom system prompt"
     Write-Host "    -ListModels          List available models for provider"
     Write-Host ""
@@ -622,7 +621,7 @@ function Main {
     
     # List models if requested
     if ($ListModels) {
-        get_models $Provider
+        Get-Models $Provider
         return
     }
     
