@@ -1,6 +1,3 @@
-# ask.ps1 - AI-powered shell assistant for PowerShell
-# Designed by Malick DIENE
-
 param(
     [Parameter(ValueFromPipeline = $true)]
     $PipelineInput,
@@ -16,6 +13,7 @@ param(
 
     [switch]$Help,
     [switch]$ListModels,
+    [switch]$Agent,
 
     [ValidateSet("none","min","auto","full")]
     [string]$Context = "auto",
@@ -26,13 +24,11 @@ param(
 
 # Configuration
 $VERSION = "1.0.0"
-$AUTHOR = "Malick DIENE"
 $CONFIG_DIR = "$env:USERPROFILE\.config\ask"
 $CACHE_DIR = "$env:USERPROFILE\.cache\ask"
 $KEYS_FILE = "$CONFIG_DIR\keys.env"
 
-# Defaults
-$DEFAULT_PROVIDER = "anthropic"
+
 $DEFAULT_MODELS = @{
     anthropic = "claude-3-sonnet-20240229"
     openai = "gpt-4o"
@@ -41,7 +37,6 @@ $DEFAULT_MODELS = @{
     deepseek = "deepseek-chat"
 }
 
-# Initialize configuration
 function Initialize-Config {
     if (-not (Test-Path $CONFIG_DIR)) { 
         New-Item -ItemType Directory -Path $CONFIG_DIR -Force | Out-Null 
@@ -55,7 +50,6 @@ function Initialize-Config {
     Load-Keys
 }
 
-# Load API keys from file
 function Load-Keys {
     if (Test-Path $KEYS_FILE) {
         Get-Content $KEYS_FILE | ForEach-Object {
@@ -70,7 +64,7 @@ function Load-Keys {
     }
 }
 
-# Manage API keys
+
 function Manage-Keys {
     param(
         [string]$Action,
@@ -225,7 +219,6 @@ function Manage-Keys {
     }
 }
 
-# Check API key for provider
 function Check-APIKey {
     param($provider)
     
@@ -255,7 +248,6 @@ function Check-APIKey {
     }
 }
 
-# Get API URL for provider
 function Get-APIUrl {
     param($provider)
     
@@ -266,7 +258,7 @@ function Get-APIUrl {
     elseif ($provider -eq "deepseek") { return "https://api.deepseek.com/v1/chat/completions" }
 }
 
-# List available models
+
 function Get_models {
     param($provider)
     
@@ -295,7 +287,6 @@ function Get_models {
     }
 }
 
-# Gather context information
 function Gather-Context {
     param([string]$Level = "auto")
     
@@ -343,14 +334,394 @@ function Gather-Context {
     return $context
 }
 
-# Call API with proper error handling
+function Invoke-AgentMode {
+    param(
+        [string]$Task,
+        [string]$Provider,
+        [string]$Model,
+        [string]$SystemPrompt
+    )
+    
+    Write-Host "🤖 Agent Mode Activated" -ForegroundColor Cyan
+    Write-Host "Task: $Task" -ForegroundColor Yellow
+    Write-Host "---" -ForegroundColor DarkGray
+    
+    Write-Host "[1/3] Planning the task..." -ForegroundColor Cyan
+    
+    $context = Gather-Context "min"
+    
+    $planPrompt = @"
+You are a PowerShell automation agent. Create a step-by-step plan for: "$Task"
+
+Context:
+$context
+
+IMPORTANT: Return ONLY a valid JSON array, without additional text, without backticks, without explanations.
+
+Return ONLY a JSON array with this EXACT structure:
+[
+  {
+    "step": 1,
+    "description": "Clear description of what this step does",
+    "command": "Complete and executable PowerShell command",
+    "risk": "low|medium|high"
+  }
+]
+
+Important Guidelines:
+1. Return ONLY the JSON, nothing else
+2. Each PowerShell command must be COMPLETE and EXECUTABLE
+3. ALWAYS close braces, parentheses and quotes
+4. Use only standard and safe PowerShell commands
+5. Mark as 'high' risk any operation that DELETES or DESTROYS data
+6. Mark as 'medium' risk file creation/modification
+7. Mark as 'low' risk read-only operations
+8. Be conservative: when in doubt, mark as higher risk
+9. Commands should be independently executable
+10. Use absolute paths or environment variables
+
+Valid JSON example:
+[
+  {
+    "step": 1,
+    "description": "Define downloads folder and list its contents",
+    "command": "`$downloadsFolder = \"`$env:USERPROFILE\\Downloads\"; Write-Host \"Folder: `$downloadsFolder\"; Get-ChildItem -Path `$downloadsFolder -File | Select-Object Name, Length, LastWriteTime",
+    "risk": "low"
+  }
+]
+
+Now, create the plan for: "$Task"
+"@
+    
+    Write-Host "Planning the task..." -ForegroundColor DarkGray
+    $planJson = Call-API -Provider $Provider -Model $Model -Prompt $planPrompt `
+        -SystemPrompt ($SystemPrompt + " You are a PowerShell expert. Respond ONLY with valid JSON.")
+    
+    if (-not $planJson) {
+        Write-Host "❌ Planning failed" -ForegroundColor Red
+        return
+    }
+    
+    $plan = Extract-JsonFromResponse -Response $planJson
+    
+    if (-not $plan) {
+        Write-Host "❌ Unable to parse JSON plan" -ForegroundColor Red
+        Write-Host "Response received:" -ForegroundColor Yellow
+        Write-Host $planJson -ForegroundColor Gray
+        return
+    }
+
+
+    Write-Host "`n📋 Generated plan ($($plan.Count) steps):" -ForegroundColor Cyan
+    $stepNumber = 1
+    foreach ($step in $plan) {
+        $riskColor = @{low = "Green"; medium = "Yellow"; high = "Red"}[$step.risk]
+        Write-Host "`n  [$($stepNumber)] " -NoNewline -ForegroundColor Cyan
+        Write-Host $step.description -ForegroundColor White
+        Write-Host "     Risk: " -NoNewline
+        Write-Host $step.risk -ForegroundColor $riskColor
+        
+       
+        if ($step.command.Length -gt 100) {
+            Write-Host "     Command: " -NoNewline -ForegroundColor Yellow
+            Write-Host $step.command.Substring(0, 100) -ForegroundColor Gray -NoNewline
+            Write-Host "..." -ForegroundColor DarkGray
+        } else {
+            Write-Host "     Command: " -NoNewline -ForegroundColor Yellow
+            Write-Host $step.command -ForegroundColor Gray
+        }
+        
+        $stepNumber++
+    }
+    
+    Write-Host "`n---" -ForegroundColor DarkGray
+    
+   
+    Write-Host "[2/3] Execution confirmation" -ForegroundColor Cyan
+    $confirmation = Read-Host "Execute plan? (O/N/Detailed) [N]"
+    
+    if ($confirmation -notmatch '^[OoYy]') {
+        if ($confirmation -match '^[Dd]') {
+            Invoke-DetailedAgentExecution -Plan $plan
+        } else {
+            Write-Host "❌ Execution cancelled" -ForegroundColor Yellow
+            return
+        }
+    } else {
+        Invoke-AutoAgentExecution -Plan $plan
+    }
+}
+function Extract-JsonFromResponse {
+    param([string]$Response)
+    
+   
+    $cleanResponse = $Response.Trim()
+    
+  
+    $cleanResponse = $cleanResponse -replace '^```(?:json)?\s*\n?', ''
+    $cleanResponse = $cleanResponse -replace '\n?```$', ''
+    $cleanResponse = $cleanResponse.Trim()
+    
+  
+    try {
+        Write-Host "Attempting JSON parsing (direct method)..." -ForegroundColor DarkGray
+        return $cleanResponse | ConvertFrom-Json -ErrorAction Stop
+    }
+    catch {
+        Write-Host "⚠️  Direct method failed, trying extraction..." -ForegroundColor Yellow
+        
+        # Method 2: Search for JSON with regex
+        $jsonPattern = '\[\s*\{[\s\S]*?\}\s*\]'
+        $match = [regex]::Match($cleanResponse, $jsonPattern, [System.Text.RegularExpressions.RegexOptions]::Singleline)
+        
+        if ($match.Success) {
+            $jsonText = $match.Value
+            
+            # Clean further
+            $jsonText = $jsonText -replace '^\s*\[\s*', '['
+            $jsonText = $jsonText -replace '\s*\]\s*$', ']'
+            $jsonText = $jsonText -replace '[\r\n]+', ' '
+            $jsonText = $jsonText -replace '\s+', ' '
+            
+            try {
+                return $jsonText | ConvertFrom-Json -ErrorAction Stop
+            }
+            catch {
+                Write-Host "⚠️  Regex parsing failed, trying manual extraction..." -ForegroundColor Yellow
+            }
+        }
+        
+        # Method 3: Manual extraction
+        $startChar = $cleanResponse.IndexOf('[')
+        $endChar = $cleanResponse.LastIndexOf(']')
+        
+        if ($startChar -ge 0 -and $endChar -gt $startChar) {
+            $possibleJson = $cleanResponse.Substring($startChar, $endChar - $startChar + 1)
+            
+          
+            $possibleJson = $possibleJson -replace '``', ''
+            $possibleJson = $possibleJson -replace '\\"', '"'
+            $possibleJson = $possibleJson -replace '`\$', '$'
+            
+            try {
+                return $possibleJson | ConvertFrom-Json -ErrorAction Stop
+            }
+            catch {
+                Write-Host "❌ Final JSON extraction failed" -ForegroundColor Red
+                Write-Host "Error: $_" -ForegroundColor Red
+           
+                Write-Host "`n🔍 DETAILED DEBUG:" -ForegroundColor Magenta
+                Write-Host "Original response (first 100 chars):" -ForegroundColor Cyan
+                Write-Host $Response.Substring(0, [Math]::Min(100, $Response.Length)) -ForegroundColor Gray
+                Write-Host "`nClean response (first 100):" -ForegroundColor Cyan
+                Write-Host $cleanResponse.Substring(0, [Math]::Min(100, $cleanResponse.Length)) -ForegroundColor Gray
+                Write-Host "`nPossible JSON (first 100):" -ForegroundColor Cyan
+                Write-Host $possibleJson.Substring(0, [Math]::Min(100, $possibleJson.Length)) -ForegroundColor Gray
+            }
+        }
+        
+        return $null
+    }
+}
+
+function Invoke-AutoAgentExecution {
+    param($Plan)
+    
+    Write-Host "[3/3] Automatic execution..." -ForegroundColor Cyan
+    
+    $successCount = 0
+    $errorCount = 0
+    
+    foreach ($step in $Plan) {
+        Write-Host "`n--- Step $($step.step)/$($Plan.Count) ---" -ForegroundColor DarkGray
+        Write-Host "📝 $($step.description)" -ForegroundColor Cyan
+        Write-Host "⚡ Command:" -ForegroundColor Yellow
+        Write-Host $step.command -ForegroundColor Gray
+        
+        try {
+         
+            $output = Invoke-Expression $step.command -ErrorAction Stop 2>&1
+            
+            if ($output) {
+                Write-Host "📤 Output:" -ForegroundColor Green
+                $output | Out-Host
+            }
+            
+            Write-Host "✓ Success" -ForegroundColor Green
+            $successCount++
+        }
+        catch {
+            Write-Host "❌ Error: " -NoNewline -ForegroundColor Red
+            Write-Host $_.Exception.Message -ForegroundColor Red
+            
+            $continue = Read-Host "Continue? (O/N) [N]"
+            if ($continue -notmatch '^[OoYy]') {
+                Write-Host "⏹️ Execution interrupted" -ForegroundColor Yellow
+                return
+            }
+            $errorCount++
+        }
+        
+        Start-Sleep -Milliseconds 500
+    }
+    
+    Write-Host "`n--- Summary ---" -ForegroundColor DarkGray
+    Write-Host "✅ Success: $successCount" -ForegroundColor Green
+    Write-Host "❌ Errors: $errorCount" -ForegroundColor $(if ($errorCount -gt 0) { "Red" } else { "Gray" })
+    Write-Host "📊 Total: $($Plan.Count) steps" -ForegroundColor Cyan
+}
+
+function Invoke-DetailedAgentExecution {
+    param($Plan)
+    
+    Write-Host "[3/3] Step-by-step execution..." -ForegroundColor Cyan
+    
+    $successCount = 0
+    $errorCount = 0
+    $skippedCount = 0
+    
+    foreach ($step in $Plan) {
+        Write-Host "`n--- Step $($step.step)/$($Plan.Count) ---" -ForegroundColor DarkGray
+        Write-Host "📝 $($step.description)" -ForegroundColor Cyan
+        
+       
+        $riskColor = @{low = "Green"; medium = "Yellow"; high = "Red"}[$step.risk]
+        Write-Host "⚠️  Risk: " -NoNewline
+        Write-Host $step.risk -ForegroundColor $riskColor
+        
+        Write-Host "⚡ Command:" -ForegroundColor Yellow
+        Write-Host $step.command -ForegroundColor Gray
+        
+   
+        Write-Host "`nOptions:" -ForegroundColor Cyan
+        Write-Host "  [E] Execute this step" -ForegroundColor Green
+        Write-Host "  [S] Skip this step" -ForegroundColor Yellow
+        Write-Host "  [M] Modify command before execution" -ForegroundColor Cyan
+        Write-Host "  [A] Stop execution" -ForegroundColor Red
+        
+        $choice = Read-Host "`nYour choice [E]"
+        
+        switch ($choice.ToUpper()) {
+            'E' {
+             
+                try {
+                    Write-Host "🔄 Executing..." -ForegroundColor Cyan
+                    $output = Invoke-Expression $step.command -ErrorAction Stop 2>&1
+                    
+                    if ($output) {
+                        Write-Host "📤 Output:" -ForegroundColor Green
+                        $output | Out-Host
+                    }
+                    
+                    Write-Host "✓ Step $($step.step) completed" -ForegroundColor Green
+                    $successCount++
+                }
+                catch {
+                    Write-Host "❌ Error: " -NoNewline -ForegroundColor Red
+                    Write-Host $_.Exception.Message -ForegroundColor Red
+                    
+                    $continue = Read-Host "Continue despite error? (O/N) [N]"
+                    if ($continue -notmatch '^[OoYy]') {
+                        Write-Host "⏹️ Execution interrupted" -ForegroundColor Yellow
+                        return
+                    }
+                    $errorCount++
+                }
+            }
+            'S' {
+                Write-Host "⏭️ Step $($step.step) skipped" -ForegroundColor Yellow
+                $skippedCount++
+                continue
+            }
+            'M' {
+            
+                Write-Host "✏️  Modifying command:" -ForegroundColor Cyan
+                Write-Host "Current command:" -ForegroundColor Yellow
+                Write-Host $step.command -ForegroundColor Gray
+                
+                $newCommand = Read-Host "`nNew command (leave empty to cancel)"
+                
+                if (-not [string]::IsNullOrWhiteSpace($newCommand)) {
+                    try {
+                        Write-Host "🔄 Executing modified command..." -ForegroundColor Cyan
+                        $output = Invoke-Expression $newCommand -ErrorAction Stop 2>&1
+                        
+                        if ($output) {
+                            Write-Host "📤 Output:" -ForegroundColor Green
+                            $output | Out-Host
+                        }
+                        
+                        Write-Host "✓ Step $($step.step) completed" -ForegroundColor Green
+                        $successCount++
+                    }
+                    catch {
+                        Write-Host "❌ Error: " -NoNewline -ForegroundColor Red
+                        Write-Host $_.Exception.Message -ForegroundColor Red
+                        
+                        $continue = Read-Host "Continue despite error? (O/N) [N]"
+                        if ($continue -notmatch '^[OoYy]') {
+                            Write-Host "⏹️ Execution interrupted" -ForegroundColor Yellow
+                            return
+                        }
+                        $errorCount++
+                    }
+                } else {
+                    Write-Host "⚠️ Modification cancelled" -ForegroundColor Yellow
+                    $skippedCount++
+                }
+            }
+            'A' {
+                Write-Host "⏹️ Execution stopped" -ForegroundColor Yellow
+                return
+            }
+            default {
+           
+                try {
+                    Write-Host "🔄 Executing..." -ForegroundColor Cyan
+                    $output = Invoke-Expression $step.command -ErrorAction Stop 2>&1
+                    
+                    if ($output) {
+                        Write-Host "📤 Output:" -ForegroundColor Green
+                        $output | Out-Host
+                    }
+                    
+                    Write-Host "✓ Step $($step.step) completed" -ForegroundColor Green
+                    $successCount++
+                }
+                catch {
+                    Write-Host "❌ Error: " -NoNewline -ForegroundColor Red
+                    Write-Host $_.Exception.Message -ForegroundColor Red
+                    
+                    $continue = Read-Host "Continue despite error? (O/N) [N]"
+                    if ($continue -notmatch '^[OoYy]') {
+                        Write-Host "⏹️ Execution interrupted" -ForegroundColor Yellow
+                        return
+                    }
+                    $errorCount++
+                }
+            }
+        }
+        
+        # Pause between steps
+        if ($step.step -lt $Plan.Count) {
+            Start-Sleep -Milliseconds 500
+        }
+    }
+    
+    Write-Host "`n--- Summary ---" -ForegroundColor DarkGray
+    Write-Host "✅ Success: $successCount" -ForegroundColor Green
+    Write-Host "❌ Errors: $errorCount" -ForegroundColor $(if ($errorCount -gt 0) { "Red" } else { "Gray" })
+    Write-Host "⏭️ Skipped: $skippedCount" -ForegroundColor Yellow
+    Write-Host "📊 Total: $($Plan.Count) steps" -ForegroundColor Cyan
+}
+
 function Call-API {
     param(
         $provider,
         $model,
         $prompt,
         $systemPrompt = "You are a helpful AI assistant for the command line. Provide concise, accurate answers. When writing code or commands, ensure they are correct and safe.",
-        $temperature = 1.0,
+        $temperature = 0.7,
         $maxTokens = 4096
     )
     
@@ -374,6 +745,7 @@ function Call-API {
                 })
                 system = $systemPrompt
                 max_tokens = $maxTokens
+                temperature = $temperature
             } | ConvertTo-Json -Depth 10
             
             $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Headers $headers -Body $body
@@ -439,7 +811,7 @@ function Call-API {
             return $response.choices[0].message.content
         }
         elseif ($provider -eq "google") {
-            # Google Gemini API
+            
             $fullUrl = "$apiUrl/${model}:generateContent"
 
             $headers = @{
@@ -458,11 +830,15 @@ function Call-API {
                         text = $prompt
                     })
                 })
+                generationConfig = @{
+                    temperature = $temperature
+                    maxOutputTokens = $maxTokens
+                }
             } | ConvertTo-Json -Depth 10
             
             $response = Invoke-RestMethod -Uri $fullUrl -Method Post -Headers $headers -Body $body
             
-            # Check for errors
+           
             if ($response.error) {
                 Write-Host "Error from Gemini API: " -NoNewline -ForegroundColor Red
                 Write-Host $response.error.message -ForegroundColor Red
@@ -513,13 +889,13 @@ function Call-API {
 
     if ($resp) {
         try {
-            # Case 1: HttpWebResponse (classic PS 5.1)
+            
             if ($resp -is [System.Net.HttpWebResponse]) {
                 $stream = $resp.GetResponseStream()
                 $reader = New-Object System.IO.StreamReader($stream)
                 $body = $reader.ReadToEnd()
             }
-            # Case 2: HttpResponseMessage (newer handlers)
+           
             elseif ($resp -is [System.Net.Http.HttpResponseMessage]) {
                 $body = $resp.Content.ReadAsStringAsync().Result
             }
@@ -537,7 +913,6 @@ function Call-API {
         }
     }
 
-    # Friendly 429 hint
     if ($_.Exception.Message -match '429') {
         Write-Host ""
         Write-Host "Tip:" -ForegroundColor Yellow
@@ -552,93 +927,173 @@ function Call-API {
 }
 
 function Show-Help {
-    Write-Host "ask - v$VERSION" -ForegroundColor Cyan
-    Write-Host "AI-powered shell assistant for PowerShell" -ForegroundColor Cyan
-    Write-Host "Designed by $AUTHOR" -ForegroundColor Cyan
+    Write-Host "╔═══════════════════════════════════════════════════════╗" -ForegroundColor Cyan
+    Write-Host "║" -NoNewline -ForegroundColor Cyan
+    Write-Host "                     ask - v$VERSION" -NoNewline -ForegroundColor White
+    Write-Host "                    ║" -ForegroundColor Cyan
+    Write-Host "║" -NoNewline -ForegroundColor Cyan
+    Write-Host "     AI-powered shell assistant for PowerShell" -NoNewline -ForegroundColor White
+    Write-Host "     ║" -ForegroundColor Cyan
+    Write-Host "║" -NoNewline -ForegroundColor Cyan
+    Write-Host "       don't grep. don't awk. just ask" -NoNewline -ForegroundColor Magenta
+    Write-Host "        ║" -ForegroundColor Cyan
+    Write-Host "╚═══════════════════════════════════════════════════════╝" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "USAGE:" -ForegroundColor Yellow
-    Write-Host "    ask [OPTIONS] [PROMPT]"
-    Write-Host "    ask [OPTIONS]              # Interactive mode"
+    Write-Host "📖 DESCRIPTION" -ForegroundColor Yellow
+    Write-Host "   An intelligent CLI assistant that uses AI to help with PowerShell tasks,"
+    Write-Host "   scripting, and system administration. Supports multiple AI providers."
     Write-Host ""
-    Write-Host "OPTIONS:" -ForegroundColor Yellow
-    Write-Host "    -Provider PROVIDER   Provider: anthropic, openai, openrouter, google, deepseek"
-    Write-Host "                              [default: anthropic]"
-    Write-Host "    -Model MODEL         Model name"
-    Write-Host "    -Context LEVEL       Context level: none, min, auto, full [default: auto]"
-    Write-Host "    -NoStream            Disable streaming"
-    Write-Host "    -SystemPrompt TEXT   Custom system prompt"
-    Write-Host "    -ListModels          List available models for provider"
-    Write-Host ""
-    Write-Host "KEY MANAGEMENT:" -ForegroundColor Yellow
-    Write-Host "    ask keys set provider     Set API key for provider"
-    Write-Host "    ask keys list             List configured keys"
-    Write-Host "    ask keys remove provider  Remove API key"
-    Write-Host "    ask keys path             Show keys file location"
-    Write-Host ""
-    Write-Host "EXAMPLES:" -ForegroundColor Yellow
-    Write-Host "    # First time setup"
-    Write-Host "    ask keys set anthropic"
-    Write-Host ""
-    Write-Host "    # Basic usage"
-    Write-Host "    ask 'how do I list services in Windows?'"
-    Write-Host "    ask -Provider openai 'explain this PowerShell script'"
-    Write-Host "    ask -Provider openai -Model gemini-2.5-flash 'how do I list services in Windows?'"
-    Write-Host ""
-    Write-Host "    # With context"
-    Write-Host "    Get-ChildItem | ask -Context full 'what files do I have?'"
-}
-
-# Main execution
-function Main {
-    # If first argument is "keys", handle key management
-    if ($Arguments.Count -gt 0 -and $Arguments[0] -eq "keys") {
-    Initialize-Config
-
-    $action   = if ($Arguments.Count -gt 1) { $Arguments[1] } else { $null }
-    $provider = if ($Arguments.Count -gt 2) { $Arguments[2] } else { $null }
-    $key      = if ($Arguments.Count -gt 3) { $Arguments[3] } else { $null }
-
-    Manage-Keys -Action $action -Provider $provider -Key $key
-    return
-}
-
     
-    # Parse parameters
+    Write-Host "🚀 BASIC USAGE" -ForegroundColor Yellow
+    Write-Host "   ask [OPTIONS] [PROMPT]              # Single question mode"
+    Write-Host "   ask [OPTIONS]                       # Interactive mode"
+    Write-Host "   COMMAND | ask [OPTIONS] [PROMPT]    # Pipe input to ask"
+    Write-Host ""
+    
+    Write-Host "🎯 MODES" -ForegroundColor Yellow
+    Write-Host "   Normal Mode   Answer questions, explain code, provide commands"
+    Write-Host "   Agent Mode    Plan and execute complex multi-step tasks"
+    Write-Host ""
+    
+    Write-Host "🔧 OPTIONS" -ForegroundColor Yellow
+    Write-Host "   -Agent                 Enable agent mode for complex task planning"
+    Write-Host "   -Provider PROVIDER     AI provider to use"
+    Write-Host "                          [default: anthropic]"
+    Write-Host "   -Model MODEL           Specific model to use (defaults per provider)"
+    Write-Host "   -Context LEVEL         System context to include:"
+    Write-Host "                          none    - No system information"
+    Write-Host "                          min     - Basic info only"
+    Write-Host "                          auto    - Smart context (default)"
+    Write-Host "                          full    - Detailed system information"
+    Write-Host "   -SystemPrompt TEXT     Custom system prompt for AI"
+    Write-Host "   -ListModels            List available models for the provider"
+    Write-Host ""
+    
+    Write-Host "🤖 SUPPORTED PROVIDERS" -ForegroundColor Yellow
+    Write-Host "   anthropic    Claude models (claude-3-sonnet, claude-3-opus, claude-3-haiku)"
+    Write-Host "   openai       GPT models (gpt-4o, gpt-4o-mini, gpt-4-turbo)"
+    Write-Host "   openrouter   Unified API for multiple providers"
+    Write-Host "   google       Gemini models (gemini-2.5-flash, gemini-2.5-flash-lite)"
+    Write-Host "   deepseek     DeepSeek models (deepseek-chat, deepseek-coder)"
+    Write-Host ""
+    
+    Write-Host "🔑 API KEY MANAGEMENT" -ForegroundColor Yellow
+    Write-Host "   ask keys set provider         Set API key for a provider"
+    Write-Host "   ask keys list                 List all configured API keys"
+    Write-Host "   ask keys remove provider      Remove API key for a provider"
+    Write-Host "   ask keys path                 Show location of keys file"
+    Write-Host ""
+    Write-Host "   Keys are stored in: $KEYS_FILE" -ForegroundColor DarkGray
+    Write-Host ""
+    
+    Write-Host "📝 EXAMPLES" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "   # First time setup" -ForegroundColor Cyan
+    Write-Host "   ask keys set anthropic"
+    Write-Host ""
+    Write-Host "   # Basic questions" -ForegroundColor Cyan
+    Write-Host "   ask 'how do I list services in Windows?'"
+    Write-Host "   ask 'explain this PowerShell script' < script.ps1"
+    Write-Host "   Get-Process | ask 'which processes are using the most memory?'"
+    Write-Host ""
+    Write-Host "   # With different providers" -ForegroundColor Cyan
+    Write-Host "   ask -Provider openai 'write a function to backup files'"
+    Write-Host "   ask -Provider google -Model gemini-2.5-flash 'optimize this SQL query'"
+    Write-Host ""
+    Write-Host "   # Agent mode (complex tasks)" -ForegroundColor Cyan
+    Write-Host "   ask -agent 'find and optimize all PNG files in ./images'"
+    Write-Host "   ask -agent 'clean up temp files older than 30 days'"
+    Write-Host "   ask -agent 'organize my downloads folder by file type'"
+    Write-Host "   ask -agent 'create a backup script for my documents'"
+    Write-Host ""
+    Write-Host "   # Context and customization" -ForegroundColor Cyan
+    Write-Host "   ask -Context full 'what can you tell me about my system?'"
+    Write-Host "   ask -SystemPrompt 'You are a PowerShell security expert' 'audit my system'"
+    Write-Host ""
+    
+    Write-Host "🎪 AGENT MODE FEATURES" -ForegroundColor Yellow
+    Write-Host "   • Plans complex tasks step by step"
+    Write-Host "   • Executes PowerShell commands safely"
+    Write-Host "   • Asks for confirmation before risky operations"
+    Write-Host "   • Provides risk assessment for each step"
+    Write-Host "   • Allows step-by-step or automatic execution"
+    Write-Host ""
+    
+    Write-Host "⚙️  CONFIGURATION" -ForegroundColor Yellow
+    Write-Host "   Configuration directory: $CONFIG_DIR" -ForegroundColor Green
+    Write-Host "   Cache directory: $CACHE_DIR" -ForegroundColor Green
+    Write-Host "   Keys file: $KEYS_FILE" -ForegroundColor Green
+    Write-Host ""
+    
+    Write-Host "💡 TIPS" -ForegroundColor Yellow
+    Write-Host "   • Use quotes for multi-word prompts"
+    Write-Host "   • Pipe output to ask for analysis"
+    Write-Host "   • Start with -Context auto for better responses"
+    Write-Host "   • Use -ListModels to see available options"
+    Write-Host "   • Agent mode works best for multi-step system tasks"
+    Write-Host ""
+    
+    Write-Host "🔗 GETTING API KEYS" -ForegroundColor Yellow
+    Write-Host "   Anthropic:   https://console.anthropic.com/" -ForegroundColor Green
+    Write-Host "   OpenAI:      https://platform.openai.com/api-keys" -ForegroundColor Green
+    Write-Host "   OpenRouter:  https://openrouter.ai/keys" -ForegroundColor Green
+    Write-Host "   Google:      https://aistudio.google.com/apikey" -ForegroundColor Green
+    Write-Host "   DeepSeek:    https://platform.deepseek.com/" -ForegroundColor Green
+    Write-Host ""
+    
+    Write-Host "🆘 NEED MORE HELP?" -ForegroundColor Yellow
+    Write-Host "   Visit: https://github.com/elias-ba/ask" -ForegroundColor Cyan
+    Write-Host "   Report issues with detailed descriptions"
+    Write-Host ""
+    Write-Host "© $((Get-Date).Year) $AUTHOR - AI-powered CLI assistant" -ForegroundColor Magenta
+}
+
+function Main {
+    
+    if ($Arguments.Count -gt 0 -and $Arguments[0] -eq "keys") {
+        Initialize-Config
+        $action   = if ($Arguments.Count -gt 1) { $Arguments[1] } else { $null }
+        $provider = if ($Arguments.Count -gt 2) { $Arguments[2] } else { $null }
+        $key      = if ($Arguments.Count -gt 3) { $Arguments[3] } else { $null }
+        
+        Manage-Keys -Action $action -Provider $provider -Key $key
+        return
+    }
+    
+ 
     if ($Help) {
         Show-Help
         return
     }
     
-    # Initialize config
+  
     Initialize-Config
     
-    # Auto-select default model if not specified
     if ([string]::IsNullOrEmpty($Model)) {
         $Model = $DEFAULT_MODELS[$Provider]
     }
     
-    # Check API key
+   
     Check-APIKey $Provider
     
-    # List models if requested
+
     if ($ListModels) {
-        get_models $Provider
+        Get_models $Provider
         return
     }
     
-    # Get prompt from arguments if not provided via -Prompt
     $userPrompt = ""
     if ([string]::IsNullOrEmpty($userPrompt) -and $Arguments.Count -gt 0) {
         $userPrompt = $Arguments -join " "
     }
     
-
+    # Handle pipeline input
     $pipedInput = ""
     if ($PipelineInput) {
-    $pipedInput = $PipelineInput | Out-String
+        $pipedInput = $PipelineInput | Out-String
     }
     
-
+    # Combine pipeline input with user prompt
     if (-not [string]::IsNullOrEmpty($pipedInput)) {
         if (-not [string]::IsNullOrEmpty($userPrompt)) {
             $userPrompt = "Input:`n$pipedInput`n`nQuestion: $userPrompt"
@@ -647,7 +1102,32 @@ function Main {
         }
     }
     
-    # Add context if requested
+
+    if ($Agent) {
+        if ([string]::IsNullOrEmpty($userPrompt)) {
+            Write-Host "❌ Agent mode requires a task" -ForegroundColor Red
+            Write-Host "Usage: ask --agent 'your task here'" -ForegroundColor Cyan
+            return
+        }
+        
+ 
+        if ($Context -eq "auto") {
+            $Context = "min"  
+        }
+        
+     
+        if ($Context -ne "none" -and -not [string]::IsNullOrEmpty($userPrompt)) {
+            $ctx = Gather-Context $Context
+            if (-not [string]::IsNullOrEmpty($ctx)) {
+                $userPrompt = "Context: $ctx`n`nTask: $userPrompt"
+            }
+        }
+        
+        Invoke-AgentMode -Task $userPrompt -Provider $Provider -Model $Model `
+            -SystemPrompt $SystemPrompt
+        return
+    }
+    
     if ($Context -ne "none" -and -not [string]::IsNullOrEmpty($userPrompt)) {
         $ctx = Gather-Context $Context
         if (-not [string]::IsNullOrEmpty($ctx)) {
@@ -655,26 +1135,21 @@ function Main {
         }
     }
     
-    # Call API
     if (-not [string]::IsNullOrEmpty($userPrompt)) {
-        
         $response = Call-API -Provider $Provider -Model $Model -Prompt $userPrompt `
-             -SystemPrompt $SystemPrompt
+            -SystemPrompt $SystemPrompt
         
         if ($response) {
             Write-Host $response
         }
     } else {
-        # Interactive mode placeholder
         Write-Host "Interactive mode not yet implemented" -ForegroundColor Cyan
         Write-Host "Please provide a prompt. Example:" -ForegroundColor Yellow
         Write-Host "  ask 'your question here'" -ForegroundColor Green
     }
 }
 
-# Main execution block
 try {
-    # Execute main function
     Main
 }
 catch {
