@@ -1000,6 +1000,19 @@ handle_stream() {
                     token_count=$((token_count + $(echo "$text" | wc -w)))
                 fi
                 ;;
+            ollama)
+                local content=$(echo "$line" | jq -r '.message.content // empty' 2>/dev/null)
+                if [[ -n "$content" && "$content" != "null" ]]; then
+                    if [ "$STREAM_STARTED" = false ]; then
+                        [ -n "$STREAM_SIGNAL_FILE" ] && echo "STARTED" > "$STREAM_SIGNAL_FILE"
+                        printf "\r\033[K" >&2
+                        STREAM_STARTED=true
+                    fi
+                    printf "%s" "$content" >&2
+                    [ "$capture" = true ] && STREAM_BUFFER+="$content"
+                    STREAM_TOKEN_COUNT=$((STREAM_TOKEN_COUNT + $(echo "$content" | wc -w)))
+                fi
+                ;;
         esac
     done
 
@@ -1164,6 +1177,36 @@ call_api() {
                 fi
 
                 echo "$response" | jq -r '.candidates[0].content.parts[0].text'
+            fi
+            ;;
+
+        ollama)
+            # Add system prompt to messages array
+            if [ -n "$system_prompt" ]; then
+                messages_json=$(echo "$messages_json" | jq "[{\"role\": \"system\", \"content\": \"$system_prompt\"}] + .")
+            fi
+
+            local data=$(jq -n \
+                --arg model "$model" \
+                --argjson messages "$messages_json" \
+                --argjson stream "$stream" \
+                '{
+                    model: $model,
+                    messages: $messages,
+                    stream: $stream
+                }')
+
+            if [ "$stream" = "true" ]; then
+                [ -t 1 ] && clear_thinking
+                curl -sN "$api_url" \
+                    -H "Content-Type: application/json" \
+                    -d "$data" | handle_stream "$provider" "$capture"
+            else
+                response=$(curl -s "$api_url" \
+                    -H "Content-Type: application/json" \
+                    -d "$data")
+                [ -t 1 ] && clear_thinking
+                echo "$response" | jq -r '.message.content'
             fi
             ;;
     esac
