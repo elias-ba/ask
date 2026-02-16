@@ -44,6 +44,14 @@ get_models() {
         openrouter) echo "anthropic/claude-sonnet-4-5,openai/gpt-4o,google/gemini-2.0-flash-exp" ;;
         google) echo "gemini-3-pro-preview,gemini-2.5-pro,gemini-2.5-flash,gemini-2.5-flash-lite" ;;
         deepseek) echo "deepseek-chat,deepseek-coder,deepseek-reasoner" ;;
+        ollama)
+            local ollama_host="${OLLAMA_HOST:-http://localhost:11434}"
+            local tag_response
+            tag_response=$(curl -s --connect-timeout 2 "${ollama_host}/api/tags" 2>/dev/null)
+            if [ $? -eq 0 ] && echo "$tag_response" | jq empty 2>/dev/null; then
+                echo "$tag_response" | jq -r '[.models[].name] | join(",")'
+            fi
+            ;;
     esac
 }
 
@@ -55,6 +63,7 @@ get_api_url() {
         openrouter) echo "https://openrouter.ai/api/v1/chat/completions" ;;
         google) echo "https://generativelanguage.googleapis.com/v1beta/models" ;;
         deepseek) echo "https://api.deepseek.com/v1/chat/completions" ;;
+        ollama) echo "${OLLAMA_HOST:-http://localhost:11434}/api/chat" ;;
     esac
 }
 
@@ -66,6 +75,7 @@ get_default_model() {
         openrouter) echo "anthropic/claude-sonnet-4-5" ;;
         google) echo "gemini-2.5-flash" ;;
         deepseek) echo "deepseek-chat" ;;
+        ollama) echo "llama3.2" ;;
     esac
 }
 
