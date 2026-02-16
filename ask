@@ -240,9 +240,13 @@ $(echo -e "${YELLOW}OPTIONS:${NC}")
     $(echo -e "${GREEN}--load${NC}")                    Load conversation history
     $(echo -e "${GREEN}--clear${NC}")                   Clear conversation
 
+    $(echo -e "${GREEN}-j, --json${NC}")                Output valid JSON (disables streaming)
+    $(echo -e "${GREEN}-c, --csv${NC}")                 Output CSV with headers (disables streaming)
+    $(echo -e "${GREEN}    --md, --markdown${NC}")      Output formatted Markdown
+    $(echo -e "${GREEN}-r, --raw${NC}")                 Plain text, no ANSI formatting
+
     $(echo -e "${GREEN}--list-models${NC}")             List available models
     $(echo -e "${GREEN}--multiline${NC}")               Multi-line input mode (Ctrl+D to send)
-    $(echo -e "${GREEN}--json${NC}")                    Output raw JSON
 
     $(echo -e "${GREEN}/gh-pr${NC}") [NUMBER]           Load GitHub PR context
     $(echo -e "${GREEN}/gh-pr-diff${NC}") [NUM]         Load GitHub PR diff
@@ -291,6 +295,11 @@ $(echo -e "${YELLOW}EXAMPLES:${NC}")
     # Git workflow helpers
     $(echo -e "${DIM}ask commit     # Generate semantic commit message${NC}")
     $(echo -e "${DIM}ask pr-review  # Review current branch vs main${NC}")
+
+    # Structured output
+    $(echo -e "${DIM}ask --json \"list HTTP status codes\" | jq '.response'${NC}")
+    $(echo -e "${DIM}ask --csv \"compare databases\" > comparison.csv${NC}")
+    $(echo -e "${DIM}ask --raw \"generate a UUID\" | pbcopy${NC}")
 
     # Interactive chat
     $(echo -e "${DIM}ask${NC}")
