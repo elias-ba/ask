@@ -2014,8 +2014,58 @@ main() {
                     fi
                 fi
 
-                call_api "$provider" "$model" "$prompt" "$stream" "$system_prompt" "$temperature" "$max_tokens"
-                echo ""
+                # Append format-specific system prompt instructions
+                if [ -n "$OUTPUT_FORMAT" ] && [ "$OUTPUT_FORMAT" != "raw" ]; then
+                    local format_instruction
+                    format_instruction=$(get_format_system_prompt "$OUTPUT_FORMAT")
+                    if [ -z "$system_prompt" ]; then
+                        system_prompt="You are a helpful AI assistant. ${format_instruction}"
+                    else
+                        system_prompt="${system_prompt} ${format_instruction}"
+                    fi
+                fi
+
+                # Disable streaming for JSON/CSV (need full response to validate/wrap)
+                if [ "$OUTPUT_FORMAT" = "json" ] || [ "$OUTPUT_FORMAT" = "csv" ]; then
+                    stream=false
+                fi
+
+                if [ -n "$OUTPUT_FORMAT" ] && [ "$OUTPUT_FORMAT" != "markdown" ]; then
+                    # Capture output for post-processing
+                    local api_output
+                    api_output=$(call_api "$provider" "$model" "$prompt" "$stream" "$system_prompt" "$temperature" "$max_tokens")
+
+                    case $OUTPUT_FORMAT in
+                        json)
+                            # Try to parse the LLM response as valid JSON
+                            local validated
+                            if validated=$(echo "$api_output" | jq '.' 2>/dev/null); then
+                                # Valid JSON — wrap in metadata envelope
+                                jq -n --argjson response "$validated" \
+                                      --arg model "$model" \
+                                      --arg provider "$provider" \
+                                      '{response: $response, metadata: {model: $model, provider: $provider}}'
+                            else
+                                # Not valid JSON — wrap raw text as a string
+                                jq -n --arg response "$api_output" \
+                                      --arg model "$model" \
+                                      --arg provider "$provider" \
+                                      '{response: $response, metadata: {model: $model, provider: $provider}}'
+                            fi
+                            ;;
+                        csv)
+                            # Strip markdown code fences if present
+                            echo "$api_output" | sed '/^```\(csv\)\{0,1\}$/d'
+                            ;;
+                        raw)
+                            # Strip ANSI escape codes
+                            echo "$api_output" | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g'
+                            ;;
+                    esac
+                else
+                    call_api "$provider" "$model" "$prompt" "$stream" "$system_prompt" "$temperature" "$max_tokens"
+                    echo ""
+                fi
             else
                 interactive_mode "$provider" "$model" "$stream" "$context_level"
             fi
