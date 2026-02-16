@@ -210,8 +210,9 @@ $(echo -e "${YELLOW}USAGE:${NC}")
     ask [OPTIONS]              # Interactive mode
 
 $(echo -e "${YELLOW}OPTIONS:${NC}")
-    $(echo -e "${GREEN}-p, --provider${NC}") PROVIDER   Provider: anthropic, openai, openrouter, google
+    $(echo -e "${GREEN}-p, --provider${NC}") PROVIDER   Provider: anthropic, openai, openrouter, google, ollama
                                   [default: anthropic]
+    $(echo -e "${GREEN}-L, --local${NC}")               Use Ollama (local LLM) — shortcut for -p ollama
     $(echo -e "${GREEN}-m, --model${NC}") MODEL         Model name [default: claude-sonnet-4-5]
     $(echo -e "${GREEN}-t, --temperature${NC}") TEMP    Temperature 0.0-2.0 [default: 1.0]
     $(echo -e "${GREEN}-s, --stream${NC}")              Enable streaming [default: on]
@@ -256,6 +257,7 @@ $(echo -e "${YELLOW}ENVIRONMENT VARIABLES (OPTIONAL):${NC}")
     $(echo -e "${GREEN}OPENROUTER_API_KEY${NC}")        OpenRouter API key (or use: ask keys set openrouter)
     $(echo -e "${GREEN}GOOGLE_API_KEY${NC}")            Google Gemini API key (or use: ask keys set google)
     $(echo -e "${GREEN}DEEPSEEK_API_KEY${NC}")          DeepSeek API key (or use: ask keys set deepseek)
+    $(echo -e "${GREEN}OLLAMA_HOST${NC}")               Ollama server URL [default: http://localhost:11434]
     $(echo -e "${GREEN}ASK_PROVIDER${NC}")              Default provider
     $(echo -e "${GREEN}ASK_MODEL${NC}")                 Default model
 
@@ -479,7 +481,7 @@ manage_keys() {
             echo "  ask keys remove <provider>  Remove API key"
             echo "  ask keys path               Show keys file location"
             echo ""
-            echo -e "${YELLOW}Providers:${NC} anthropic, openai, openrouter, google"
+            echo -e "${YELLOW}Providers:${NC} anthropic, openai, openrouter, google, ollama (no key needed)"
             ;;
     esac
 }
@@ -1830,6 +1832,10 @@ main() {
 
     while [[ $# -gt 0 ]]; do
         case $1 in
+            -L|--local)
+                provider="ollama"
+                shift
+                ;;
             -p|--provider)
                 provider="$2"
                 shift 2
