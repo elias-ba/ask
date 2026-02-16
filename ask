@@ -35,6 +35,7 @@ DEFAULT_TEMPERATURE="1.0"
 DEFAULT_MAX_TOKENS="4096"
 STREAM_ENABLED=true
 MAX_HISTORY=100
+OUTPUT_FORMAT=""
 
 get_models() {
     local provider=$1
@@ -88,6 +89,15 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 DIM='\033[2m'
 NC='\033[0m'
+
+get_format_system_prompt() {
+    local format=$1
+    case $format in
+        json) echo "Respond ONLY with valid JSON. No markdown, no explanation, no code fences." ;;
+        csv) echo "Respond ONLY with CSV format. First row must be headers. No markdown, no explanation, no code fences." ;;
+        markdown) echo "Format your response as clean Markdown with headers, lists, and tables where appropriate." ;;
+    esac
+}
 
 CONVERSATION_JSON=""
 
