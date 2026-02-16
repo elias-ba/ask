@@ -501,6 +501,24 @@ check_dependencies() {
 
 check_api_key() {
     local provider=$1
+
+    # Ollama doesn't use API keys — check server reachability instead
+    if [ "$provider" = "ollama" ]; then
+        local ollama_host="${OLLAMA_HOST:-http://localhost:11434}"
+        if ! curl -s --connect-timeout 2 "${ollama_host}/api/tags" >/dev/null 2>&1; then
+            echo -e "${RED}Error: Cannot connect to Ollama at ${ollama_host}${NC}\n"
+            echo -e "${BOLD}Is Ollama running?${NC}"
+            echo -e "  ${CYAN}ollama serve${NC}"
+            echo -e ""
+            echo -e "${BOLD}Using a custom host?${NC}"
+            echo -e "  ${CYAN}export OLLAMA_HOST=http://your-host:11434${NC}"
+            echo -e ""
+            echo -e "${DIM}Install Ollama: https://ollama.com${NC}"
+            exit 1
+        fi
+        return 0
+    fi
+
     local key_var=""
 
     case $provider in
@@ -514,7 +532,7 @@ check_api_key() {
     if [ -z "${!key_var}" ]; then
         echo -e "${RED}Error: $key_var not set${NC}\n"
 
-        # Check which other providers have keys configured
+        # Check which other providers have keys configured (exclude ollama — no API key concept)
         local available_providers=""
         local all_providers="anthropic openai openrouter google deepseek"
         for p in $all_providers; do
