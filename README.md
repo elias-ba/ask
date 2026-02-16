@@ -60,6 +60,23 @@ Install on macOS:
 brew install curl jq
 ```
 
+### Uninstall
+
+To completely remove ask from your system:
+
+```bash
+# Remove the binary
+sudo rm /usr/local/bin/ask
+# Or if installed to user directory
+rm ~/.local/bin/ask
+
+# Remove configuration and saved functions
+rm -rf ~/.config/ask/
+
+# Remove cache and history
+rm -rf ~/.cache/ask/
+```
+
 ## Setup
 
 ### Quick Setup (Recommended)
