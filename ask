@@ -503,7 +503,35 @@ check_api_key() {
 
     if [ -z "${!key_var}" ]; then
         echo -e "${RED}Error: $key_var not set${NC}\n"
-        echo -e "${BOLD}Set up your API key:${NC}"
+
+        # Check which other providers have keys configured
+        local available_providers=""
+        local all_providers="anthropic openai openrouter google deepseek"
+        for p in $all_providers; do
+            [ "$p" = "$provider" ] && continue
+            local p_key=""
+            case $p in
+                anthropic) p_key="ANTHROPIC_API_KEY" ;;
+                openai) p_key="OPENAI_API_KEY" ;;
+                openrouter) p_key="OPENROUTER_API_KEY" ;;
+                google) p_key="GOOGLE_API_KEY" ;;
+                deepseek) p_key="DEEPSEEK_API_KEY" ;;
+            esac
+            if [ -n "${!p_key}" ]; then
+                available_providers="${available_providers:+$available_providers, }$p"
+            fi
+        done
+
+        if [ -n "$available_providers" ]; then
+            local first_provider="${available_providers%%,*}"
+            echo -e "${BOLD}Tip:${NC} You have API keys configured for: ${GREEN}${available_providers}${NC}"
+            echo -e "  Try: ${CYAN}ask -p ${first_provider} 'your question'${NC}"
+            echo -e "  Or set it as default: ${CYAN}export ASK_PROVIDER=${first_provider}${NC}"
+            echo -e ""
+            echo -e "${BOLD}Or set up your ${provider} API key:${NC}"
+        else
+            echo -e "${BOLD}Set up your API key:${NC}"
+        fi
         echo -e "  ${CYAN}ask keys set $provider${NC}"
         echo -e ""
         echo -e "${BOLD}Or use environment variable:${NC}"
