@@ -14,7 +14,8 @@ Unlike generic LLM CLIs, ask is built for **shell power users**:
 - **Shell-native** - Works perfectly with pipes and Unix philosophy
 - **Context-aware** - Understands git repos, recent commands, system state
 - **Fast & streaming** - Real-time responses as you type
-- **Multi-provider** - Anthropic, OpenAI, Google Gemini, OpenRouter support
+- **Multi-provider** - Anthropic, OpenAI, Google Gemini, OpenRouter, DeepSeek, and Ollama (local)
+- **Structured output** - `--json`, `--csv`, `--md`, `--raw` for pipeline composability
 - **Pure bash** - No Python, Node, or other runtimes needed
 
 ## Installation
@@ -91,6 +92,7 @@ ask keys set anthropic
 ask keys set openai
 ask keys set openrouter
 ask keys set google
+ask keys set deepseek
 
 # List your configured keys
 ask keys list
@@ -117,6 +119,12 @@ export GOOGLE_API_KEY='...'
 
 # OpenRouter
 export OPENROUTER_API_KEY='sk-or-...'
+
+# DeepSeek
+export DEEPSEEK_API_KEY='...'
+
+# Ollama (optional, defaults to http://localhost:11434)
+export OLLAMA_HOST='http://localhost:11434'
 ```
 
 Add to your `~/.bashrc` or `~/.zshrc` to persist.
@@ -127,6 +135,20 @@ Add to your `~/.bashrc` or `~/.zshrc` to persist.
 - **OpenAI**: <https://platform.openai.com/api-keys>
 - **Google Gemini**: <https://aistudio.google.com/apikey>
 - **OpenRouter**: <https://openrouter.ai/keys>
+- **DeepSeek**: <https://platform.deepseek.com/api_keys>
+
+#### Ollama (Local Models)
+
+Ollama requires no API key. Install it and pull a model:
+
+```bash
+# Install Ollama (https://ollama.com)
+# Then pull a model
+ollama pull llama3.2
+
+# Use with ask
+ask -L "your question"
+```
 
 ## Usage
 
@@ -216,6 +238,22 @@ ask --context auto "debug this error"
 ask --context full "why did that command fail?"
 ```
 
+### Local Models (Ollama)
+
+```bash
+# Use a local model
+ask -L "explain this error"
+
+# List installed local models
+ask -L --list-models
+
+# Use a specific local model
+ask -L -m mistral "your question"
+
+# Custom Ollama host
+OLLAMA_HOST=http://192.168.1.10:11434 ask -L "hello"
+```
+
 ### Model Selection
 
 ```bash
@@ -228,6 +266,24 @@ ask -m gpt-4o "write a poem"
 # Switch provider
 ask -p openai "your question"
 ```
+
+### Structured Output
+
+```bash
+# JSON with metadata envelope (validated with jq)
+ask --json "list HTTP status codes" | jq '.response'
+
+# CSV with headers
+ask --csv "compare python vs javascript" > comparison.csv
+
+# Clean Markdown
+ask --md "explain REST APIs"
+
+# Raw text, no ANSI codes (useful in scripts)
+ask --raw "generate a UUID" | pbcopy
+```
+
+JSON and CSV automatically disable streaming to validate and post-process the full response.
 
 ### Streaming Control
 
