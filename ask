@@ -1935,6 +1935,22 @@ main() {
                 gh_issue="$2"
                 shift 2
                 ;;
+            -j|--json)
+                OUTPUT_FORMAT="json"
+                shift
+                ;;
+            -c|--csv)
+                OUTPUT_FORMAT="csv"
+                shift
+                ;;
+            --md|--markdown)
+                OUTPUT_FORMAT="markdown"
+                shift
+                ;;
+            -r|--raw)
+                OUTPUT_FORMAT="raw"
+                shift
+                ;;
             -*)
                 echo -e "${RED}Unknown option: $1${NC}"
                 echo "Try 'ask --help' for more information"
