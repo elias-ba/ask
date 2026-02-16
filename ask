@@ -590,6 +590,27 @@ check_api_key() {
 list_models() {
     local provider=$1
     echo -e "${CYAN}Available models for ${BOLD}${provider}${NC}:"
+
+    if [ "$provider" = "ollama" ]; then
+        local ollama_host="${OLLAMA_HOST:-http://localhost:11434}"
+        local tag_response
+        tag_response=$(curl -s --connect-timeout 2 "${ollama_host}/api/tags" 2>/dev/null)
+        if [ $? -ne 0 ] || ! echo "$tag_response" | jq empty 2>/dev/null; then
+            echo -e "  ${RED}Cannot connect to Ollama at ${ollama_host}${NC}"
+            echo -e "  ${DIM}Start Ollama with: ollama serve${NC}"
+            return 1
+        fi
+        local model_count
+        model_count=$(echo "$tag_response" | jq '.models | length')
+        if [ "$model_count" -eq 0 ]; then
+            echo -e "  ${YELLOW}No models installed${NC}"
+            echo -e "  ${DIM}Pull a model with: ollama pull llama3.2${NC}"
+            return 0
+        fi
+        echo "$tag_response" | jq -r '.models[] | "  \u001b[0;32m→\u001b[0m \(.name)\t\u001b[2m\((.size / 1073741824 * 10 | floor / 10 | tostring) + " GB")\u001b[0m"'
+        return 0
+    fi
+
     local models=$(get_models "$provider")
     local IFS=','
     for model in $models; do
