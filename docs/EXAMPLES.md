@@ -404,7 +404,7 @@ ask
 # | (_| \__ \   <
 #  \__,_|___/_|\_\
 #
-# ask v1.0.0
+# ask v0.5.0
 # don't grep. don't awk. just ask
 #
 # Provider: anthropic | Model: claude-sonnet-4-5
