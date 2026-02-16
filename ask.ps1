@@ -23,7 +23,9 @@ param(
 
 
 # Configuration
-$VERSION = "1.0.0"
+
+$VERSION = "0.5.0"
+$AUTHOR = "Malick DIENE"
 $CONFIG_DIR = "$env:USERPROFILE\.config\ask"
 $CACHE_DIR = "$env:USERPROFILE\.cache\ask"
 $KEYS_FILE = "$CONFIG_DIR\keys.env"
@@ -1046,7 +1048,7 @@ function Show-Help {
     Write-Host "   Visit: https://github.com/elias-ba/ask" -ForegroundColor Cyan
     Write-Host "   Report issues with detailed descriptions"
     Write-Host ""
-    Write-Host "© $((Get-Date).Year) Malick DIENE - AI-powered CLI assistant" -ForegroundColor Magenta
+    Write-Host "© $((Get-Date).Year) $AUTHOR - AI-powered CLI assistant" -ForegroundColor Magenta
 }
 
 function Main {

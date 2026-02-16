@@ -22,7 +22,7 @@ sudo mv ask /usr/local/bin/
 
 ```bash
 ask --version
-# ask v1.0.0
+# ask v0.5.0
 ```
 
 ## Setup API Key
