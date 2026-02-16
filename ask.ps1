@@ -27,6 +27,8 @@ $VERSION = "1.0.0"
 $CONFIG_DIR = "$env:USERPROFILE\.config\ask"
 $CACHE_DIR = "$env:USERPROFILE\.cache\ask"
 $KEYS_FILE = "$CONFIG_DIR\keys.env"
+$AGENT_TEMPERATURE = 0.7
+$DEFAULT_TEMPERATURE = 1.0
 
 
 $DEFAULT_MODELS = @{
@@ -259,7 +261,7 @@ function Get-APIUrl {
 }
 
 
-function Get_models {
+function Get-models {
     param($provider)
 
     Write-Host "Available models for $provider :" -ForegroundColor Cyan
@@ -395,7 +397,9 @@ Now, create the plan for: "$Task"
     
     Write-Host "Planning the task..." -ForegroundColor DarkGray
     $planJson = Call-API -Provider $Provider -Model $Model -Prompt $planPrompt `
-        -SystemPrompt ($SystemPrompt + " You are a PowerShell expert. Respond ONLY with valid JSON.")
+    -SystemPrompt ($SystemPrompt + " You are a PowerShell expert. Respond ONLY with valid JSON.") `
+    -Temperature $AGENT_TEMPERATURE
+
     
     if (-not $planJson) {
         Write-Host "❌ Planning failed" -ForegroundColor Red
@@ -438,17 +442,17 @@ Now, create the plan for: "$Task"
     
    
     Write-Host "[2/3] Execution confirmation" -ForegroundColor Cyan
-    $confirmation = Read-Host "Execute plan? (O/N/Detailed) [N]"
+    $confirmation = Read-Host "Execute plan? (Y/N/Detailed) [N]"
     
-    if ($confirmation -notmatch '^[OoYy]') {
-        if ($confirmation -match '^[Dd]') {
-            Invoke-DetailedAgentExecution -Plan $plan
-        } else {
-            Write-Host "❌ Execution cancelled" -ForegroundColor Yellow
-            return
-        }
-    } else {
-        Invoke-AutoAgentExecution -Plan $plan
+    if ($confirmation -match '^[Yy]') {
+    Invoke-AutoAgentExecution -Plan $plan
+    }
+    elseif ($confirmation -match '^[Dd]') {
+        Invoke-DetailedAgentExecution -Plan $plan
+    }
+    else {
+        Write-Host "❌ Execution cancelled" -ForegroundColor Yellow
+        return
     }
 }
 function Extract-JsonFromResponse {
@@ -464,20 +468,16 @@ function Extract-JsonFromResponse {
     
   
     try {
-        Write-Host "Attempting JSON parsing (direct method)..." -ForegroundColor DarkGray
         return $cleanResponse | ConvertFrom-Json -ErrorAction Stop
     }
     catch {
-        Write-Host "⚠️  Direct method failed, trying extraction..." -ForegroundColor Yellow
-        
         # Method 2: Search for JSON with regex
         $jsonPattern = '\[\s*\{[\s\S]*?\}\s*\]'
         $match = [regex]::Match($cleanResponse, $jsonPattern, [System.Text.RegularExpressions.RegexOptions]::Singleline)
         
         if ($match.Success) {
             $jsonText = $match.Value
-            
-            # Clean further
+        
             $jsonText = $jsonText -replace '^\s*\[\s*', '['
             $jsonText = $jsonText -replace '\s*\]\s*$', ']'
             $jsonText = $jsonText -replace '[\r\n]+', ' '
@@ -487,7 +487,7 @@ function Extract-JsonFromResponse {
                 return $jsonText | ConvertFrom-Json -ErrorAction Stop
             }
             catch {
-                Write-Host "⚠️  Regex parsing failed, trying manual extraction..." -ForegroundColor Yellow
+              
             }
         }
         
@@ -507,20 +507,49 @@ function Extract-JsonFromResponse {
                 return $possibleJson | ConvertFrom-Json -ErrorAction Stop
             }
             catch {
-                Write-Host "❌ Final JSON extraction failed" -ForegroundColor Red
-                Write-Host "Error: $_" -ForegroundColor Red
-           
-                Write-Host "`n🔍 DETAILED DEBUG:" -ForegroundColor Magenta
-                Write-Host "Original response (first 100 chars):" -ForegroundColor Cyan
-                Write-Host $Response.Substring(0, [Math]::Min(100, $Response.Length)) -ForegroundColor Gray
-                Write-Host "`nClean response (first 100):" -ForegroundColor Cyan
-                Write-Host $cleanResponse.Substring(0, [Math]::Min(100, $cleanResponse.Length)) -ForegroundColor Gray
-                Write-Host "`nPossible JSON (first 100):" -ForegroundColor Cyan
-                Write-Host $possibleJson.Substring(0, [Math]::Min(100, $possibleJson.Length)) -ForegroundColor Gray
+                Write-Host "❌ JSON extraction failed" -ForegroundColor Red
             }
         }
         
         return $null
+    }
+}
+
+function Invoke-StepCommand {
+    param(
+        [string]$Command,
+        [string]$StepNumber,
+        [switch]$Silent
+    )
+    
+    try {
+        Write-Host "🔄 Executing..." -ForegroundColor Cyan
+        
+        $scriptBlock = [ScriptBlock]::Create($Command)
+        
+        $output = & $scriptBlock 2>&1
+        
+        $errors = $output | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }
+        
+        if ($errors) {
+            foreach ($err in $errors) {
+                Write-Host "⚠️ Command warning/error: $($err.Exception.Message)" -ForegroundColor Yellow
+            }
+        }
+        
+        $normalOutput = $output | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] }
+        if (-not $Silent -and $normalOutput) {
+            Write-Host "📤 Output:" -ForegroundColor Green
+            $normalOutput | Out-Host
+        }
+        
+        Write-Host "✓ Step $StepNumber completed" -ForegroundColor Green
+        return $true
+    }
+    catch {
+        Write-Host "❌ Error: " -NoNewline -ForegroundColor Red
+        Write-Host $_.Exception.Message -ForegroundColor Red
+        return $false
     }
 }
 
@@ -531,44 +560,69 @@ function Invoke-AutoAgentExecution {
     
     $successCount = 0
     $errorCount = 0
+    $skippedCount = 0
     
     foreach ($step in $Plan) {
         Write-Host "`n--- Step $($step.step)/$($Plan.Count) ---" -ForegroundColor DarkGray
         Write-Host "📝 $($step.description)" -ForegroundColor Cyan
+        
+        # Afficher le niveau de risque avec couleur
+        $riskColor = @{low = "Green"; medium = "Yellow"; high = "Red"}[$step.risk]
+        Write-Host "⚠️  Risk level: " -NoNewline
+        Write-Host $step.risk -ForegroundColor $riskColor
+        
         Write-Host "⚡ Command:" -ForegroundColor Yellow
         Write-Host $step.command -ForegroundColor Gray
         
-        try {
-         
-            $output = Invoke-Expression $step.command -ErrorAction Stop 2>&1
+        if ($step.risk -eq "high") {
+            Write-Host "`n⚠️  ⚠️  ⚠️  HIGH RISK OPERATION ⚠️  ⚠️  ⚠️" -ForegroundColor Red -BackgroundColor Black
+            Write-Host "This step could potentially:" -ForegroundColor Yellow
+            Write-Host "  • Delete or modify important data" -ForegroundColor Yellow
+            Write-Host "  • Change system settings" -ForegroundColor Yellow
+            Write-Host "  • Affect system stability" -ForegroundColor Yellow
             
-            if ($output) {
-                Write-Host "📤 Output:" -ForegroundColor Green
-                $output | Out-Host
+            $highRiskConfirm = Read-Host "`nExecute this high-risk step? (Y/N/Skip) [N]"
+            
+            switch ($highRiskConfirm.ToUpper()) {
+                'Y' {
+                    Write-Host "Proceeding with high-risk step..." -ForegroundColor Yellow
+                }
+                'Skip' {
+                    Write-Host "⏭️ High-risk step skipped" -ForegroundColor Yellow
+                    $skippedCount++
+                    continue
+                }
+                default {
+                    Write-Host "⏹️ Execution cancelled by user" -ForegroundColor Yellow
+                    Display-ExecutionSummary -Success $successCount -Error $errorCount -Skipped $skippedCount -Total $Plan.Count
+                    return
+                }
             }
-            
-            Write-Host "✓ Success" -ForegroundColor Green
+        }
+        
+        $result = Invoke-StepCommand -Command $step.command -StepNumber $step.step
+        
+        if ($result) {
             $successCount++
         }
-        catch {
-            Write-Host "❌ Error: " -NoNewline -ForegroundColor Red
-            Write-Host $_.Exception.Message -ForegroundColor Red
+        else {
+            Write-Host "`n❌ Step failed!" -ForegroundColor Red
+            $continue = Read-Host "Continue with remaining steps? (Y/N) [N]"
             
-            $continue = Read-Host "Continue? (O/N) [N]"
-            if ($continue -notmatch '^[OoYy]') {
+            if ($continue -notmatch '^[Yy]') {
                 Write-Host "⏹️ Execution interrupted" -ForegroundColor Yellow
+                Display-ExecutionSummary -Success $successCount -Error $errorCount -Skipped $skippedCount -Total $Plan.Count
                 return
             }
             $errorCount++
         }
         
-        Start-Sleep -Milliseconds 500
+        if ($step.step -lt $Plan.Count) {
+            Start-Sleep -Milliseconds 500
+        }
     }
     
-    Write-Host "`n--- Summary ---" -ForegroundColor DarkGray
-    Write-Host "✅ Success: $successCount" -ForegroundColor Green
-    Write-Host "❌ Errors: $errorCount" -ForegroundColor $(if ($errorCount -gt 0) { "Red" } else { "Gray" })
-    Write-Host "📊 Total: $($Plan.Count) steps" -ForegroundColor Cyan
+    Display-ExecutionSummary -Success $successCount -Error $errorCount -Skipped $skippedCount -Total $Plan.Count
 }
 
 function Invoke-DetailedAgentExecution {
@@ -584,7 +638,6 @@ function Invoke-DetailedAgentExecution {
         Write-Host "`n--- Step $($step.step)/$($Plan.Count) ---" -ForegroundColor DarkGray
         Write-Host "📝 $($step.description)" -ForegroundColor Cyan
         
-       
         $riskColor = @{low = "Green"; medium = "Yellow"; high = "Red"}[$step.risk]
         Write-Host "⚠️  Risk: " -NoNewline
         Write-Host $step.risk -ForegroundColor $riskColor
@@ -592,7 +645,6 @@ function Invoke-DetailedAgentExecution {
         Write-Host "⚡ Command:" -ForegroundColor Yellow
         Write-Host $step.command -ForegroundColor Gray
         
-   
         Write-Host "`nOptions:" -ForegroundColor Cyan
         Write-Host "  [E] Execute this step" -ForegroundColor Green
         Write-Host "  [S] Skip this step" -ForegroundColor Yellow
@@ -603,30 +655,8 @@ function Invoke-DetailedAgentExecution {
         
         switch ($choice.ToUpper()) {
             'E' {
-             
-                try {
-                    Write-Host "🔄 Executing..." -ForegroundColor Cyan
-                    $output = Invoke-Expression $step.command -ErrorAction Stop 2>&1
-                    
-                    if ($output) {
-                        Write-Host "📤 Output:" -ForegroundColor Green
-                        $output | Out-Host
-                    }
-                    
-                    Write-Host "✓ Step $($step.step) completed" -ForegroundColor Green
-                    $successCount++
-                }
-                catch {
-                    Write-Host "❌ Error: " -NoNewline -ForegroundColor Red
-                    Write-Host $_.Exception.Message -ForegroundColor Red
-                    
-                    $continue = Read-Host "Continue despite error? (O/N) [N]"
-                    if ($continue -notmatch '^[OoYy]') {
-                        Write-Host "⏹️ Execution interrupted" -ForegroundColor Yellow
-                        return
-                    }
-                    $errorCount++
-                }
+                $result = Invoke-StepCommand -Command $step.command -StepNumber $step.step
+                if ($result) { $successCount++ } else { $errorCount++ }
             }
             'S' {
                 Write-Host "⏭️ Step $($step.step) skipped" -ForegroundColor Yellow
@@ -634,7 +664,6 @@ function Invoke-DetailedAgentExecution {
                 continue
             }
             'M' {
-            
                 Write-Host "✏️  Modifying command:" -ForegroundColor Cyan
                 Write-Host "Current command:" -ForegroundColor Yellow
                 Write-Host $step.command -ForegroundColor Gray
@@ -642,29 +671,8 @@ function Invoke-DetailedAgentExecution {
                 $newCommand = Read-Host "`nNew command (leave empty to cancel)"
                 
                 if (-not [string]::IsNullOrWhiteSpace($newCommand)) {
-                    try {
-                        Write-Host "🔄 Executing modified command..." -ForegroundColor Cyan
-                        $output = Invoke-Expression $newCommand -ErrorAction Stop 2>&1
-                        
-                        if ($output) {
-                            Write-Host "📤 Output:" -ForegroundColor Green
-                            $output | Out-Host
-                        }
-                        
-                        Write-Host "✓ Step $($step.step) completed" -ForegroundColor Green
-                        $successCount++
-                    }
-                    catch {
-                        Write-Host "❌ Error: " -NoNewline -ForegroundColor Red
-                        Write-Host $_.Exception.Message -ForegroundColor Red
-                        
-                        $continue = Read-Host "Continue despite error? (O/N) [N]"
-                        if ($continue -notmatch '^[OoYy]') {
-                            Write-Host "⏹️ Execution interrupted" -ForegroundColor Yellow
-                            return
-                        }
-                        $errorCount++
-                    }
+                    $result = Invoke-StepCommand -Command $newCommand -StepNumber $step.step
+                    if ($result) { $successCount++ } else { $errorCount++ }
                 } else {
                     Write-Host "⚠️ Modification cancelled" -ForegroundColor Yellow
                     $skippedCount++
@@ -672,47 +680,40 @@ function Invoke-DetailedAgentExecution {
             }
             'A' {
                 Write-Host "⏹️ Execution stopped" -ForegroundColor Yellow
+                Display-ExecutionSummary -Success $successCount -Error $errorCount -Skipped $skippedCount -Total $Plan.Count
                 return
             }
             default {
-           
-                try {
-                    Write-Host "🔄 Executing..." -ForegroundColor Cyan
-                    $output = Invoke-Expression $step.command -ErrorAction Stop 2>&1
-                    
-                    if ($output) {
-                        Write-Host "📤 Output:" -ForegroundColor Green
-                        $output | Out-Host
-                    }
-                    
-                    Write-Host "✓ Step $($step.step) completed" -ForegroundColor Green
-                    $successCount++
-                }
-                catch {
-                    Write-Host "❌ Error: " -NoNewline -ForegroundColor Red
-                    Write-Host $_.Exception.Message -ForegroundColor Red
-                    
-                    $continue = Read-Host "Continue despite error? (O/N) [N]"
-                    if ($continue -notmatch '^[OoYy]') {
-                        Write-Host "⏹️ Execution interrupted" -ForegroundColor Yellow
-                        return
-                    }
-                    $errorCount++
-                }
+                $result = Invoke-StepCommand -Command $step.command -StepNumber $step.step
+                if ($result) { $successCount++ } else { $errorCount++ }
             }
         }
         
-        # Pause between steps
         if ($step.step -lt $Plan.Count) {
             Start-Sleep -Milliseconds 500
         }
     }
     
+    Display-ExecutionSummary -Success $successCount -Error $errorCount -Skipped $skippedCount -Total $Plan.Count
+}
+
+function Display-ExecutionSummary {
+    param(
+        [int]$Success,
+        [int]$Errors,
+        [int]$Skipped = 0,
+        [int]$Total
+    )
+    
     Write-Host "`n--- Summary ---" -ForegroundColor DarkGray
-    Write-Host "✅ Success: $successCount" -ForegroundColor Green
-    Write-Host "❌ Errors: $errorCount" -ForegroundColor $(if ($errorCount -gt 0) { "Red" } else { "Gray" })
-    Write-Host "⏭️ Skipped: $skippedCount" -ForegroundColor Yellow
-    Write-Host "📊 Total: $($Plan.Count) steps" -ForegroundColor Cyan
+    Write-Host "✅ Success: $Success" -ForegroundColor Green
+    Write-Host "❌ Errors: $Errors" -ForegroundColor $(if ($Error -gt 0) { "Red" } else { "Gray" })
+    
+    if ($Skipped -gt 0) {
+        Write-Host "⏭️ Skipped: $Skipped" -ForegroundColor Yellow
+    }
+    
+    Write-Host "📊 Total: $Total steps" -ForegroundColor Cyan
 }
 
 function Call-API {
@@ -721,7 +722,7 @@ function Call-API {
         $model,
         $prompt,
         $systemPrompt = "You are a helpful AI assistant for the command line. Provide concise, accurate answers. When writing code or commands, ensure they are correct and safe.",
-        $temperature = 0.7,
+        $temperature = $DEFAULT_TEMPERATURE,
         $maxTokens = 4096
     )
     
@@ -1045,7 +1046,7 @@ function Show-Help {
     Write-Host "   Visit: https://github.com/elias-ba/ask" -ForegroundColor Cyan
     Write-Host "   Report issues with detailed descriptions"
     Write-Host ""
-    Write-Host "© $((Get-Date).Year) $AUTHOR - AI-powered CLI assistant" -ForegroundColor Magenta
+    Write-Host "© $((Get-Date).Year) Malick DIENE - AI-powered CLI assistant" -ForegroundColor Magenta
 }
 
 function Main {
