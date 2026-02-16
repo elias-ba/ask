@@ -4,6 +4,7 @@
 # don't grep. don't awk. just ask
 
 VERSION="0.5.0"
+# shellcheck disable=SC2034
 AUTHOR="Elias W. BA <eliaswalyba@gmail.com>"
 
 if [ -z "$BASH_VERSION" ]; then
@@ -23,6 +24,7 @@ CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/ask"
 HISTORY_FILE="$CACHE_DIR/history.jsonl"
 READLINE_HISTORY="$CACHE_DIR/readline_history"
 FUNCTIONS_FILE="$CONFIG_DIR/functions.sh"
+# shellcheck disable=SC2034
 CONTEXT_FILE="$CACHE_DIR/context.json"
 KEYS_FILE="$CONFIG_DIR/keys.env"
 
@@ -48,8 +50,7 @@ get_models() {
         ollama)
             local ollama_host="${OLLAMA_HOST:-http://localhost:11434}"
             local tag_response
-            tag_response=$(curl -s --connect-timeout 2 "${ollama_host}/api/tags" 2>/dev/null)
-            if [ $? -eq 0 ] && echo "$tag_response" | jq empty 2>/dev/null; then
+            if tag_response=$(curl -s --connect-timeout 2 "${ollama_host}/api/tags" 2>/dev/null) && echo "$tag_response" | jq empty 2>/dev/null; then
                 echo "$tag_response" | jq -r '[.models[].name] | join(",")'
             fi
             ;;
@@ -83,6 +84,7 @@ get_default_model() {
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+# shellcheck disable=SC2034
 BLUE='\033[0;34m'
 MAGENTA='\033[0;35m'
 CYAN='\033[0;36m'
@@ -101,13 +103,16 @@ get_format_system_prompt() {
 
 CONVERSATION_JSON=""
 
+# shellcheck disable=SC2034
 RENDER_MODE="$DEFAULT_RENDER"
 
 # Spinner state
 SPINNER_PID=""
 API_PID=""
 THINKING_START_TIME=0
+# shellcheck disable=SC2034
 TOKEN_COUNT=0
+# shellcheck disable=SC2034
 REQUEST_CANCELLED=false
 
 # Animated spinner with info and escape detection
@@ -123,9 +128,10 @@ start_spinner() {
     # Set terminal to raw mode for keypress detection
     stty -echo -icanon min 0 time 1 2>/dev/null
 
+    local elapsed
     while true; do
-        local elapsed=$(($(date +%s) - THINKING_START_TIME))
-        printf "\r${DIM}%s${NC} ${CYAN}Thinking...${NC} ${DIM}%ds · %s · Esc to cancel${NC}    " \
+        elapsed=$(($(date +%s) - THINKING_START_TIME))
+        printf "\r\033[2m%s\033[0m \033[0;36mThinking...\033[0m \033[2m%ds · %s · Esc to cancel\033[0m    " \
             "${frames[$i]}" "$elapsed" "$model_info" >&2
         i=$(( (i + 1) % frame_count ))
 
@@ -165,7 +171,7 @@ cancel_request() {
         wait "$API_PID" 2>/dev/null
     fi
     API_PID=""
-    printf "\r\033[K${DIM}Request cancelled${NC}\n" >&2
+    printf '%b' "\r\033[K${DIM}Request cancelled${NC}\n" >&2
 }
 
 # Legacy functions for non-interactive use
@@ -178,8 +184,10 @@ show_thinking() {
 
 clear_thinking() {
     if [ -t 1 ] && [ "$THINKING_START_TIME" -gt 0 ]; then
-        local current_time=$(date +%s)
-        local elapsed=$((current_time - THINKING_START_TIME))
+        local current_time
+        current_time=$(date +%s)
+        local elapsed
+        elapsed=$((current_time - THINKING_START_TIME))
         if [ "$elapsed" -lt 1 ]; then
             sleep 0.3
         fi
@@ -204,7 +212,8 @@ EOF
 
 show_welcome() {
     local model_short=$1
-    local cwd=$(pwd)
+    local cwd
+    cwd=$(pwd)
     cwd="${cwd/#$HOME/~}"
     [ ${#cwd} -gt 40 ] && cwd="...${cwd: -37}"
     echo -e "${BOLD}ask${NC} ${DIM}v${VERSION} · ${model_short} · ${cwd}${NC}"
@@ -434,14 +443,16 @@ manage_keys() {
                     deepseek) key_var="DEEPSEEK_API_KEY" ;;
                 esac
 
-                local key_value="${!key_var}"
+                local key_value
+                key_value="${!key_var}"
 
                 if [ -z "$key_value" ] && [ -f "$KEYS_FILE" ]; then
                     key_value=$(grep "^${key_var}=" "$KEYS_FILE" 2>/dev/null | cut -d'=' -f2)
                 fi
 
                 if [ -n "$key_value" ]; then
-                    local masked_key="${key_value:0:8}...${key_value: -4}"
+                    local masked_key
+                    masked_key="${key_value:0:8}...${key_value: -4}"
                     local source="env"
                     if grep -q "^${key_var}=" "$KEYS_FILE" 2>/dev/null; then
                         source="file"
@@ -615,8 +626,7 @@ list_models() {
     if [ "$provider" = "ollama" ]; then
         local ollama_host="${OLLAMA_HOST:-http://localhost:11434}"
         local tag_response
-        tag_response=$(curl -s --connect-timeout 2 "${ollama_host}/api/tags" 2>/dev/null)
-        if [ $? -ne 0 ] || ! echo "$tag_response" | jq empty 2>/dev/null; then
+        if ! tag_response=$(curl -s --connect-timeout 2 "${ollama_host}/api/tags" 2>/dev/null) || ! echo "$tag_response" | jq empty 2>/dev/null; then
             echo -e "  ${RED}Cannot connect to Ollama at ${ollama_host}${NC}"
             echo -e "  ${DIM}Start Ollama with: ollama serve${NC}"
             return 1
@@ -632,7 +642,8 @@ list_models() {
         return 0
     fi
 
-    local models=$(get_models "$provider")
+    local models
+    models=$(get_models "$provider")
     local IFS=','
     for model in $models; do
         echo -e "  ${GREEN}→${NC} $model"
@@ -655,7 +666,8 @@ gather_context() {
 
             if git rev-parse --git-dir &>/dev/null; then
                 context+="Git branch: $(git branch --show-current 2>/dev/null)\n"
-                local status=$(git status --short 2>/dev/null | head -5)
+                local status
+                status=$(git status --short 2>/dev/null | head -5)
                 [ -n "$status" ] && context+="Git status:\n$status\n"
             fi
             ;;
@@ -663,7 +675,8 @@ gather_context() {
             context=$(gather_context auto)
             context+="Shell: $SHELL\n"
             context+="User: $USER\n"
-            local last_cmd=$(fc -ln -1 2>/dev/null | sed 's/^[[:space:]]*//')
+            local last_cmd
+            last_cmd=$(fc -ln -1 2>/dev/null | sed 's/^[[:space:]]*//')
             [ -n "$last_cmd" ] && context+="Last command: $last_cmd\n"
             ;;
     esac
@@ -695,7 +708,8 @@ check_github_repo() {
         return 1
     fi
 
-    local remote_url=$(git config --get remote.origin.url 2>/dev/null)
+    local remote_url
+    remote_url=$(git config --get remote.origin.url 2>/dev/null)
     if [[ ! "$remote_url" =~ github\.com ]]; then
         echo -e "${RED}Error: No GitHub remote found${NC}" >&2
         echo -e "${DIM}Current remote: $remote_url${NC}" >&2
@@ -716,10 +730,8 @@ gather_github_context() {
     case $type in
         pr)
             if [ -n "$id" ] && [ "$id" != "current" ]; then
-                local pr_data=$(gh pr view "$id" --json number,title,body,author,state,isDraft,additions,deletions,labels,reviewDecision 2>&1)
-                local exit_code=$?
-
-                if [ $exit_code -ne 0 ]; then
+                local pr_data
+                if ! pr_data=$(gh pr view "$id" --json number,title,body,author,state,isDraft,additions,deletions,labels,reviewDecision 2>&1); then
                     echo -e "${RED}Error: Could not fetch PR #${id}${NC}" >&2
                     echo -e "${DIM}$pr_data${NC}" >&2
                     return 1
@@ -739,15 +751,14 @@ gather_github_context() {
                 ')\n\n"
 
             else
-                local pr_data=$(gh pr view --json number,title,body,author,state,isDraft,additions,deletions,labels,reviewDecision,commits 2>&1)
-                local exit_code=$?
-
-                if [ $exit_code -ne 0 ]; then
+                local pr_data
+                if ! pr_data=$(gh pr view --json number,title,body,author,state,isDraft,additions,deletions,labels,reviewDecision,commits 2>&1); then
                     echo -e "${YELLOW}No PR found for current branch${NC}" >&2
                     return 1
                 fi
 
-                local pr_num=$(echo "$pr_data" | jq -r '.number')
+                local pr_num
+                pr_num=$(echo "$pr_data" | jq -r '.number')
                 context+="=== Current Branch PR #$pr_num ===\n"
                 context+="$(echo "$pr_data" | jq -r '
                     "Title: \(.title)",
@@ -771,10 +782,8 @@ gather_github_context() {
                 return 1
             fi
 
-            local issue_data=$(gh issue view "$id" --json number,title,body,author,state,labels,assignees,comments 2>&1)
-            local exit_code=$?
-
-            if [ $exit_code -ne 0 ]; then
+            local issue_data
+            if ! issue_data=$(gh issue view "$id" --json number,title,body,author,state,labels,assignees,comments 2>&1); then
                 echo -e "${RED}Error: Could not fetch issue #${id}${NC}" >&2
                 echo -e "${DIM}$issue_data${NC}" >&2
                 return 1
@@ -793,7 +802,8 @@ gather_github_context() {
                 "\(.body // "No description provided")"
             ')\n\n"
 
-            local comment_count=$(echo "$issue_data" | jq '.comments | length')
+            local comment_count
+            comment_count=$(echo "$issue_data" | jq '.comments | length')
             if [ "$comment_count" -gt 0 ]; then
                 context+="Recent Comments:\n"
                 context+="$(echo "$issue_data" | jq -r '
@@ -804,15 +814,17 @@ gather_github_context() {
             ;;
 
         pr-diff)
+            local diff
             if [ -z "$id" ]; then
-                local diff=$(gh pr diff 2>&1)
+                if ! diff=$(gh pr diff 2>&1); then
+                    echo -e "${RED}Error: Could not fetch PR diff${NC}" >&2
+                    return 1
+                fi
             else
-                local diff=$(gh pr diff "$id" 2>&1)
-            fi
-
-            if [ $? -ne 0 ]; then
-                echo -e "${RED}Error: Could not fetch PR diff${NC}" >&2
-                return 1
+                if ! diff=$(gh pr diff "$id" 2>&1); then
+                    echo -e "${RED}Error: Could not fetch PR diff${NC}" >&2
+                    return 1
+                fi
             fi
 
             context+="=== PR Changes ===\n"
@@ -821,9 +833,8 @@ gather_github_context() {
 
         pr-list)
             local state="${id:-open}"
-            local prs=$(gh pr list --state "$state" --json number,title,author,updatedAt --limit 10 2>&1)
-
-            if [ $? -ne 0 ]; then
+            local prs
+            if ! prs=$(gh pr list --state "$state" --json number,title,author,updatedAt --limit 10 2>&1); then
                 echo -e "${RED}Error: Could not list PRs${NC}" >&2
                 return 1
             fi
@@ -834,9 +845,8 @@ gather_github_context() {
 
         issue-list)
             local state="${id:-open}"
-            local issues=$(gh issue list --state "$state" --json number,title,author,updatedAt --limit 10 2>&1)
-
-            if [ $? -ne 0 ]; then
+            local issues
+            if ! issues=$(gh issue list --state "$state" --json number,title,author,updatedAt --limit 10 2>&1); then
                 echo -e "${RED}Error: Could not list issues${NC}" >&2
                 return 1
             fi
@@ -846,9 +856,8 @@ gather_github_context() {
             ;;
 
         repo)
-            local repo_data=$(gh repo view --json name,description,stargazerCount,forkCount,primaryLanguage,defaultBranchRef 2>&1)
-
-            if [ $? -ne 0 ]; then
+            local repo_data
+            if ! repo_data=$(gh repo view --json name,description,stargazerCount,forkCount,primaryLanguage,defaultBranchRef 2>&1); then
                 echo -e "${RED}Error: Could not fetch repo info${NC}" >&2
                 return 1
             fi
@@ -877,8 +886,8 @@ handle_github_command() {
         /gh-pr)
             local pr_num="${args[0]}"
             echo -e "${CYAN}Fetching PR context...${NC}"
-            local gh_ctx=$(gather_github_context "pr" "$pr_num")
-            if [ $? -eq 0 ] && [ -n "$gh_ctx" ]; then
+            local gh_ctx
+            if gh_ctx=$(gather_github_context "pr" "$pr_num") && [ -n "$gh_ctx" ]; then
                 echo -e "${GREEN}✓ Loaded PR context${NC}"
                 GH_CONTEXT="$gh_ctx"
             fi
@@ -887,8 +896,8 @@ handle_github_command() {
         /gh-pr-diff)
             local pr_num="${args[0]}"
             echo -e "${CYAN}Fetching PR diff...${NC}"
-            local gh_ctx=$(gather_github_context "pr-diff" "$pr_num")
-            if [ $? -eq 0 ] && [ -n "$gh_ctx" ]; then
+            local gh_ctx
+            if gh_ctx=$(gather_github_context "pr-diff" "$pr_num") && [ -n "$gh_ctx" ]; then
                 echo -e "${GREEN}✓ Loaded PR diff${NC}"
                 GH_CONTEXT="$gh_ctx"
             fi
@@ -902,8 +911,8 @@ handle_github_command() {
                 return
             fi
             echo -e "${CYAN}Fetching issue context...${NC}"
-            local gh_ctx=$(gather_github_context "issue" "$issue_num")
-            if [ $? -eq 0 ] && [ -n "$gh_ctx" ]; then
+            local gh_ctx
+            if gh_ctx=$(gather_github_context "issue" "$issue_num") && [ -n "$gh_ctx" ]; then
                 echo -e "${GREEN}✓ Loaded issue #${issue_num} context${NC}"
                 GH_CONTEXT="$gh_ctx"
             fi
@@ -912,8 +921,8 @@ handle_github_command() {
         /gh-prs)
             local state="${args[0]:-open}"
             echo -e "${CYAN}Listing ${state} PRs...${NC}"
-            local gh_ctx=$(gather_github_context "pr-list" "$state")
-            if [ $? -eq 0 ] && [ -n "$gh_ctx" ]; then
+            local gh_ctx
+            if gh_ctx=$(gather_github_context "pr-list" "$state") && [ -n "$gh_ctx" ]; then
                 echo "$gh_ctx"
             fi
             ;;
@@ -921,16 +930,16 @@ handle_github_command() {
         /gh-issues)
             local state="${args[0]:-open}"
             echo -e "${CYAN}Listing ${state} issues...${NC}"
-            local gh_ctx=$(gather_github_context "issue-list" "$state")
-            if [ $? -eq 0 ] && [ -n "$gh_ctx" ]; then
+            local gh_ctx
+            if gh_ctx=$(gather_github_context "issue-list" "$state") && [ -n "$gh_ctx" ]; then
                 echo "$gh_ctx"
             fi
             ;;
 
         /gh-repo)
             echo -e "${CYAN}Fetching repository info...${NC}"
-            local gh_ctx=$(gather_github_context "repo" "")
-            if [ $? -eq 0 ] && [ -n "$gh_ctx" ]; then
+            local gh_ctx
+            if gh_ctx=$(gather_github_context "repo" "") && [ -n "$gh_ctx" ]; then
                 echo "$gh_ctx"
             fi
             ;;
@@ -973,8 +982,10 @@ handle_stream() {
     STREAM_BUFFER=""
     STREAM_STARTED=false
     STREAM_TOKEN_COUNT=0
-    local start_time=$(date +%s)
+    local start_time
+    start_time=$(date +%s)
 
+    local type content text
     while IFS= read -r line; do
         [[ -z "$line" ]] && continue
 
@@ -986,9 +997,9 @@ handle_stream() {
 
         case $provider in
             anthropic)
-                local type=$(echo "$line" | jq -r '.type // empty' 2>/dev/null)
+                type=$(echo "$line" | jq -r '.type // empty' 2>/dev/null)
                 if [[ "$type" == "content_block_delta" ]]; then
-                    local text=$(echo "$line" | jq -r '.delta.text // empty' 2>/dev/null)
+                    text=$(echo "$line" | jq -r '.delta.text // empty' 2>/dev/null)
                     if [[ -n "$text" && "$text" != "null" ]]; then
                         if [ "$STREAM_STARTED" = false ]; then
                             [ -n "$STREAM_SIGNAL_FILE" ] && echo "STARTED" > "$STREAM_SIGNAL_FILE"
@@ -1002,7 +1013,7 @@ handle_stream() {
                 fi
                 ;;
             openai|openrouter|deepseek)
-                local content=$(echo "$line" | jq -r '.choices[0].delta.content // empty' 2>/dev/null)
+                content=$(echo "$line" | jq -r '.choices[0].delta.content // empty' 2>/dev/null)
                 if [[ -n "$content" && "$content" != "null" ]]; then
                     if [ "$STREAM_STARTED" = false ]; then
                         [ -n "$STREAM_SIGNAL_FILE" ] && echo "STARTED" > "$STREAM_SIGNAL_FILE"
@@ -1015,14 +1026,14 @@ handle_stream() {
                 fi
                 ;;
             google)
-                local text=$(echo "$line" | jq -r '.candidates[0].content.parts[0].text // empty' 2>/dev/null)
+                text=$(echo "$line" | jq -r '.candidates[0].content.parts[0].text // empty' 2>/dev/null)
                 if [[ -n "$text" && "$text" != "null" ]]; then
                     printf "%s" "$text"
                     token_count=$((token_count + $(echo "$text" | wc -w)))
                 fi
                 ;;
             ollama)
-                local content=$(echo "$line" | jq -r '.message.content // empty' 2>/dev/null)
+                content=$(echo "$line" | jq -r '.message.content // empty' 2>/dev/null)
                 if [[ -n "$content" && "$content" != "null" ]]; then
                     if [ "$STREAM_STARTED" = false ]; then
                         [ -n "$STREAM_SIGNAL_FILE" ] && echo "STARTED" > "$STREAM_SIGNAL_FILE"
@@ -1039,9 +1050,11 @@ handle_stream() {
 
     # Show stats after streaming
     if [ "$STREAM_STARTED" = true ]; then
-        local elapsed=$(($(date +%s) - start_time))
+        local elapsed
+        elapsed=$(($(date +%s) - start_time))
         [ $elapsed -eq 0 ] && elapsed=1
-        local tps=$((STREAM_TOKEN_COUNT / elapsed))
+        local tps
+        tps=$((STREAM_TOKEN_COUNT / elapsed))
         echo "" >&2
         echo -e "${DIM}↳ Done · ${STREAM_TOKEN_COUNT} tokens · ${elapsed}s · ~${tps} tok/s${NC}" >&2
     fi
@@ -1060,7 +1073,8 @@ call_api() {
     local max_tokens=${7:-4096}
     local capture=${8:-false}
 
-    local api_url=$(get_api_url "$provider")
+    local api_url
+    api_url=$(get_api_url "$provider")
     local response=""
 
     local messages_json="$CONVERSATION_JSON"
@@ -1073,7 +1087,8 @@ call_api() {
 
     case $provider in
         anthropic)
-            local data=$(jq -n \
+            local data
+            data=$(jq -n \
                 --arg model "$model" \
                 --argjson messages "$messages_json" \
                 --argjson stream "$stream" \
@@ -1115,7 +1130,8 @@ call_api() {
                 messages_json=$(echo "$messages_json" | jq "[{\"role\": \"system\", \"content\": \"$system_prompt\"}] + .")
             fi
 
-            local data=$(jq -n \
+            local data
+            data=$(jq -n \
                 --arg model "$model" \
                 --argjson messages "$messages_json" \
                 --argjson stream "$stream" \
@@ -1150,7 +1166,8 @@ call_api() {
             # OpenAI: {"role": "user", "content": "..."}
             # Gemini: {"role": "user", "parts": [{"text": "..."}]}
             # Also convert "assistant" role to "model"
-            local gemini_contents=$(echo "$messages_json" | jq '[.[] | {
+            local gemini_contents
+            gemini_contents=$(echo "$messages_json" | jq '[.[] | {
                 role: (if .role == "assistant" then "model" else .role end),
                 parts: [{text: .content}]
             }]')
@@ -1161,7 +1178,8 @@ call_api() {
             local full_url="${api_url}/${model}:${endpoint}"
 
             # Build request data with system_instruction
-            local data=$(jq -n \
+            local data
+            data=$(jq -n \
                 --argjson contents "$gemini_contents" \
                 --arg system "$system_prompt" \
                 '{
@@ -1185,9 +1203,11 @@ call_api() {
                 [ -t 1 ] && clear_thinking
 
                 # Check for API errors
-                local error_msg=$(echo "$response" | jq -r '.error.message // empty' 2>/dev/null)
+                local error_msg
+                error_msg=$(echo "$response" | jq -r '.error.message // empty' 2>/dev/null)
                 if [ -n "$error_msg" ]; then
-                    local error_code=$(echo "$response" | jq -r '.error.code // empty' 2>/dev/null)
+                    local error_code
+                    error_code=$(echo "$response" | jq -r '.error.code // empty' 2>/dev/null)
                     echo -e "${RED}Error from Gemini API (code $error_code):${NC}" >&2
                     echo -e "${DIM}$error_msg${NC}" >&2
                     if [[ "$error_msg" == *"quota"* ]] || [[ "$error_code" == "429" ]]; then
@@ -1207,7 +1227,8 @@ call_api() {
                 messages_json=$(echo "$messages_json" | jq "[{\"role\": \"system\", \"content\": \"$system_prompt\"}] + .")
             fi
 
-            local data=$(jq -n \
+            local data
+            data=$(jq -n \
                 --arg model "$model" \
                 --argjson messages "$messages_json" \
                 --argjson stream "$stream" \
@@ -1250,7 +1271,8 @@ Requirements:
 - Return ONLY the function code, no explanation
 - Start with: ${fn_name}() {"
 
-    local code=$(call_api "$provider" "$model" "$prompt" false "You are an expert bash programmer. Generate clean, safe, well-commented bash functions." 1.0 2048)
+    local code
+    code=$(call_api "$provider" "$model" "$prompt" false "You are an expert bash programmer. Generate clean, safe, well-commented bash functions." 1.0 2048)
 
     if ! echo "$code" | bash -n 2>/dev/null; then
         echo -e "${RED}Generated function has syntax errors${NC}"
@@ -1271,7 +1293,8 @@ Requirements:
             echo -e "Source it with: ${DIM}source $FUNCTIONS_FILE${NC}"
             ;;
         e|E)
-            local tmp_file=$(mktemp)
+            local tmp_file
+            tmp_file=$(mktemp)
             echo "$code" > "$tmp_file"
             ${EDITOR:-vi} "$tmp_file"
             echo -e "\n# generated by ask on $(date)" >> "$FUNCTIONS_FILE"
@@ -1294,7 +1317,8 @@ agent_mode() {
     echo -e "${MAGENTA}agent mode${NC}"
     echo -e "Goal: ${BOLD}${goal}${NC}\n"
 
-    local context=$(gather_context full)
+    local context
+    context=$(gather_context full)
     local prompt="You are a bash automation agent. Create a step-by-step plan to: $goal
 
 Context:
@@ -1319,7 +1343,8 @@ Guidelines:
 - Be conservative: when in doubt, mark as higher risk"
 
     echo -e "${CYAN}Creating execution plan...${NC}\n"
-    local plan=$(call_api "$provider" "$model" "$prompt" false "You are a bash automation expert. Always return valid JSON." 0.7 2048)
+    local plan
+    plan=$(call_api "$provider" "$model" "$prompt" false "You are a bash automation expert. Always return valid JSON." 0.7 2048)
 
     plan=$(echo "$plan" | sed -n '/\[/,/\]/p')
 
@@ -1347,13 +1372,15 @@ Guidelines:
         return 0
     fi
 
-    local plan_file=$(mktemp)
+    local plan_file
+    plan_file=$(mktemp)
     echo "$plan" | jq -c '.[]' > "$plan_file"
 
+    local cmd desc risk
     while IFS= read -r step; do
-        local cmd=$(echo "$step" | jq -r '.command')
-        local desc=$(echo "$step" | jq -r '.description')
-        local risk=$(echo "$step" | jq -r '.risk')
+        cmd=$(echo "$step" | jq -r '.command')
+        desc=$(echo "$step" | jq -r '.description')
+        risk=$(echo "$step" | jq -r '.risk')
 
         echo -e "\n${CYAN}→ $desc${NC}"
         echo -e "${DIM}$cmd${NC}"
@@ -1373,7 +1400,8 @@ Guidelines:
 
         if [ "$should_execute" = true ]; then
             eval "$cmd"
-            local exit_code=$?
+            local exit_code
+            exit_code=$?
 
             if [ $exit_code -eq 0 ]; then
                 echo -e "${GREEN}✓ Success${NC}"
@@ -1397,7 +1425,8 @@ git_commit_helper() {
         return 1
     fi
 
-    local diff=$(git diff --cached)
+    local diff
+    diff=$(git diff --cached)
     if [ -z "$diff" ]; then
         echo -e "${YELLOW}No staged changes. Stage changes with: git add${NC}"
         return 1
@@ -1414,7 +1443,8 @@ Changes:
 $diff
 \`\`\`"
 
-    local msg=$(call_api "$DEFAULT_PROVIDER" "$DEFAULT_MODEL" "$prompt" false "You are a git expert. Generate concise, semantic commit messages in conventional commits format. Return ONLY the commit message, no explanation or markdown." 0.7 1024)
+    local msg
+    msg=$(call_api "$DEFAULT_PROVIDER" "$DEFAULT_MODEL" "$prompt" false "You are a git expert. Generate concise, semantic commit messages in conventional commits format. Return ONLY the commit message, no explanation or markdown." 0.7 1024)
 
     msg=$(echo "$msg" | sed 's/^[`"]*//g' | sed 's/[`"]*$//g' | head -1)
 
@@ -1434,7 +1464,8 @@ $diff
             git commit -m "$msg"
             ;;
         e|E)
-            local tmp_file=$(mktemp)
+            local tmp_file
+            tmp_file=$(mktemp)
             echo "$msg" > "$tmp_file"
             ${EDITOR:-vi} "$tmp_file"
             git commit -F "$tmp_file"
@@ -1454,7 +1485,8 @@ save_history() {
 load_history() {
     if [ -f "$HISTORY_FILE" ]; then
         CONVERSATION_JSON=$(cat "$HISTORY_FILE")
-        local msg_count=$(echo "$CONVERSATION_JSON" | jq 'length')
+        local msg_count
+        msg_count=$(echo "$CONVERSATION_JSON" | jq 'length')
         echo -e "${GREEN}✓ Loaded ${msg_count} messages${NC}"
     else
         echo -e "${YELLOW}No history found${NC}"
@@ -1486,6 +1518,7 @@ Assistant: Let me check your disk usage.
 
 # Session permission for auto-executing commands
 AUTO_EXECUTE_COMMANDS=false
+# shellcheck disable=SC2034
 LAST_COMMAND_OUTPUT=""
 COLLECTED_OUTPUTS=""
 
@@ -1536,6 +1569,7 @@ run_command_interactive() {
                 exit_code=$?
             fi
 
+            # shellcheck disable=SC2034
             LAST_COMMAND_OUTPUT="$output"
             COLLECTED_OUTPUTS="${COLLECTED_OUTPUTS}\n\$ ${cmd}\n${output}"
             [ -n "$output" ] && echo "$output" >&2
@@ -1645,8 +1679,10 @@ interactive_mode() {
                 continue
                 ;;
             /gh-*)
-                local gh_cmd=$(echo "$input" | awk '{print $1}')
-                local gh_args_raw=$(echo "$input" | cut -s -d' ' -f2-)
+                local gh_cmd
+                gh_cmd=$(echo "$input" | awk '{print $1}')
+                local gh_args_raw
+                gh_args_raw=$(echo "$input" | cut -s -d' ' -f2-)
 
                 if [ -n "$gh_args_raw" ]; then
                     read -ra gh_args_array <<< "$gh_args_raw"
@@ -1700,7 +1736,8 @@ interactive_mode() {
             GH_CONTEXT=""
         fi
         if [ "$context_level" != "none" ]; then
-            local ctx=$(gather_context "$context_level")
+            local ctx
+            ctx=$(gather_context "$context_level")
             if [ -n "$ctx" ]; then
                 full_prompt="Context about my system:\n${ctx}\n\nQuestion: ${full_prompt}"
             fi
@@ -1713,8 +1750,10 @@ interactive_mode() {
         REQUEST_CANCELLED=false
         local spinner_model="${model##*/}"
         spinner_model="${spinner_model%-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]}"
-        local tmp_response=$(mktemp)
-        local tmp_signal=$(mktemp)
+        local tmp_response
+        tmp_response=$(mktemp)
+        local tmp_signal
+        tmp_signal=$(mktemp)
         export STREAM_SIGNAL_FILE="$tmp_signal"
 
         # Run API call in background (stdout=capture to file, stderr=display to terminal)
@@ -1726,23 +1765,24 @@ interactive_mode() {
             local frames=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
             local frame_count=${#frames[@]}
             local i=0
-            local start_time=$(date +%s)
+            local start_time
+            start_time=$(date +%s)
 
             stty -echo -icanon min 0 time 1 2>/dev/null
 
+            local elapsed key
             while kill -0 $API_PID 2>/dev/null; do
                 # Check if streaming started
                 if [ -f "$tmp_signal" ] && grep -q "STARTED" "$tmp_signal" 2>/dev/null; then
                     break
                 fi
 
-                local elapsed=$(($(date +%s) - start_time))
-                printf "\r${DIM}%s Thinking... %ds · %s · Esc to cancel${NC}    " \
+                elapsed=$(($(date +%s) - start_time))
+                printf "\r\033[2m%s Thinking... %ds · %s · Esc to cancel\033[0m    " \
                     "${frames[$i]}" "$elapsed" "$spinner_model" >&2
                 i=$(( (i + 1) % frame_count ))
 
                 # Check for Escape key
-                local key
                 key=$(dd bs=1 count=1 2>/dev/null)
                 if [ "$key" = $'\x1b' ]; then
                     echo "CANCELLED" > "$tmp_signal"
@@ -1759,6 +1799,7 @@ interactive_mode() {
 
         # Check if cancelled
         if [ -f "$tmp_signal" ] && grep -q "CANCELLED" "$tmp_signal" 2>/dev/null; then
+            # shellcheck disable=SC2034
             REQUEST_CANCELLED=true
             echo -e "${DIM}Request cancelled${NC}" >&2
             rm -f "$tmp_response" "$tmp_signal"
@@ -1767,10 +1808,12 @@ interactive_mode() {
 
         # Wait for API to complete and get response
         wait $API_PID 2>/dev/null
-        local response=$(cat "$tmp_response" 2>/dev/null)
+        local response
+        response=$(cat "$tmp_response" 2>/dev/null)
         rm -f "$tmp_response" "$tmp_signal"
 
         # Agent loop: run commands and feed results back until no more commands
+        local remaining has_commands cmd
         while [ -n "$response" ]; do
             CONVERSATION_JSON=$(echo "$CONVERSATION_JSON" | jq ". + [{\"role\":\"assistant\",\"content\":$(echo "$response" | jq -Rs .)}]")
 
@@ -1781,13 +1824,13 @@ interactive_mode() {
 
             # Extract and run all commands, collect outputs
             COLLECTED_OUTPUTS=""
-            local remaining="$response"
-            local has_commands=false
+            remaining="$response"
+            has_commands=false
 
             while [[ "$remaining" == *"<cmd>"* ]]; do
                 remaining="${remaining#*<cmd>}"
                 if [[ "$remaining" == *"</cmd>"* ]]; then
-                    local cmd="${remaining%%</cmd>*}"
+                    cmd="${remaining%%</cmd>*}"
                     cmd=$(echo "$cmd" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
                     if [ -n "$cmd" ]; then
                         run_command_interactive "$cmd"
@@ -1828,7 +1871,8 @@ Based on these results, continue your analysis. If you need more information, ru
             rm -f "$tmp_response" "$tmp_signal"
         done
 
-        local msg_count=$(echo "$CONVERSATION_JSON" | jq 'length')
+        local msg_count
+        msg_count=$(echo "$CONVERSATION_JSON" | jq 'length')
         if [ "$msg_count" -gt $((MAX_HISTORY * 2)) ]; then
             CONVERSATION_JSON=$(echo "$CONVERSATION_JSON" | jq '.[2:]')
         fi
@@ -2003,21 +2047,24 @@ main() {
         chat)
             if [ -n "$prompt" ]; then
                 if [ "$context_level" != "none" ]; then
-                    local ctx=$(gather_context "$context_level")
+                    local ctx
+                    ctx=$(gather_context "$context_level")
                     if [ -n "$ctx" ]; then
                         prompt="Context about my system:\n${ctx}\n\nQuestion: ${prompt}"
                     fi
                 fi
 
                 if [ -n "$gh_pr" ]; then
-                    local gh_ctx=$(gather_github_context "pr" "$gh_pr")
+                    local gh_ctx
+                    gh_ctx=$(gather_github_context "pr" "$gh_pr")
                     if [ -n "$gh_ctx" ]; then
                         prompt="${gh_ctx}${prompt}"
                     fi
                 fi
 
                 if [ -n "$gh_issue" ]; then
-                    local gh_ctx=$(gather_github_context "issue" "$gh_issue")
+                    local gh_ctx
+                    gh_ctx=$(gather_github_context "issue" "$gh_issue")
                     if [ -n "$gh_ctx" ]; then
                         prompt="${gh_ctx}${prompt}"
                     fi
@@ -2068,6 +2115,7 @@ main() {
                             ;;
                         raw)
                             # Strip ANSI escape codes
+                            # shellcheck disable=SC2001
                             echo "$api_output" | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g'
                             ;;
                     esac
