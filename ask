@@ -4,8 +4,6 @@
 # don't grep. don't awk. just ask
 
 VERSION="0.5.0"
-# shellcheck disable=SC2034
-AUTHOR="Elias W. BA <eliaswalyba@gmail.com>"
 
 if [ -z "$BASH_VERSION" ]; then
     echo "Error: This script requires Bash"
@@ -24,8 +22,6 @@ CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/ask"
 HISTORY_FILE="$CACHE_DIR/history.jsonl"
 READLINE_HISTORY="$CACHE_DIR/readline_history"
 FUNCTIONS_FILE="$CONFIG_DIR/functions.sh"
-# shellcheck disable=SC2034
-CONTEXT_FILE="$CACHE_DIR/context.json"
 KEYS_FILE="$CONFIG_DIR/keys.env"
 
 # Command execution settings
@@ -84,8 +80,6 @@ get_default_model() {
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-# shellcheck disable=SC2034
-BLUE='\033[0;34m'
 MAGENTA='\033[0;35m'
 CYAN='\033[0;36m'
 BOLD='\033[1m'
@@ -103,17 +97,10 @@ get_format_system_prompt() {
 
 CONVERSATION_JSON=""
 
-# shellcheck disable=SC2034
-RENDER_MODE="$DEFAULT_RENDER"
-
 # Spinner state
 SPINNER_PID=""
 API_PID=""
 THINKING_START_TIME=0
-# shellcheck disable=SC2034
-TOKEN_COUNT=0
-# shellcheck disable=SC2034
-REQUEST_CANCELLED=false
 
 # Animated spinner with info and escape detection
 start_spinner() {
@@ -164,7 +151,6 @@ stop_spinner() {
 
 # Kill API request
 cancel_request() {
-    REQUEST_CANCELLED=true
     stop_spinner
     if [ -n "$API_PID" ] && kill -0 "$API_PID" 2>/dev/null; then
         kill "$API_PID" 2>/dev/null
@@ -1518,8 +1504,6 @@ Assistant: Let me check your disk usage.
 
 # Session permission for auto-executing commands
 AUTO_EXECUTE_COMMANDS=false
-# shellcheck disable=SC2034
-LAST_COMMAND_OUTPUT=""
 COLLECTED_OUTPUTS=""
 
 # Execute command with user confirmation and timeout
@@ -1569,8 +1553,6 @@ run_command_interactive() {
                 exit_code=$?
             fi
 
-            # shellcheck disable=SC2034
-            LAST_COMMAND_OUTPUT="$output"
             COLLECTED_OUTPUTS="${COLLECTED_OUTPUTS}\n\$ ${cmd}\n${output}"
             [ -n "$output" ] && echo "$output" >&2
 
@@ -1747,7 +1729,6 @@ interactive_mode() {
         CONVERSATION_JSON=$(echo "$CONVERSATION_JSON" | jq ". + [{\"role\":\"user\",\"content\":$(echo "$full_prompt" | jq -Rs .)}]")
 
         # Setup for cancellable request
-        REQUEST_CANCELLED=false
         local spinner_model="${model##*/}"
         spinner_model="${spinner_model%-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]}"
         local tmp_response
@@ -1799,8 +1780,6 @@ interactive_mode() {
 
         # Check if cancelled
         if [ -f "$tmp_signal" ] && grep -q "CANCELLED" "$tmp_signal" 2>/dev/null; then
-            # shellcheck disable=SC2034
-            REQUEST_CANCELLED=true
             echo -e "${DIM}Request cancelled${NC}" >&2
             rm -f "$tmp_response" "$tmp_signal"
             continue
