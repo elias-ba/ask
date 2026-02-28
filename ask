@@ -26,6 +26,28 @@ KEYS_FILE="$CONFIG_DIR/keys.env"
 
 # Command execution settings
 COMMAND_TIMEOUT=30  # seconds
+AGENT_LOG_FILE="$CACHE_DIR/agent_history.log"
+
+# Audit logging for agent mode
+agent_log() {
+    local level=$1
+    shift
+    local message="$*"
+    local timestamp
+    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[$timestamp] [$level] $message" >> "$AGENT_LOG_FILE" 2>/dev/null
+
+    # Simple log rotation: truncate to last 500 lines if over 1MB
+    if [ -f "$AGENT_LOG_FILE" ]; then
+        local size
+        size=$(wc -c < "$AGENT_LOG_FILE" 2>/dev/null || echo 0)
+        if [ "$size" -gt 1048576 ]; then
+            local tmp
+            tmp=$(tail -500 "$AGENT_LOG_FILE")
+            echo "$tmp" > "$AGENT_LOG_FILE"
+        fi
+    fi
+}
 
 DEFAULT_PROVIDER="anthropic"
 DEFAULT_MODEL="claude-sonnet-4-5-20250929"
@@ -1294,50 +1316,98 @@ Requirements:
     esac
 }
 
+# Dangerous command blocklist - best-effort guardrail
+DANGEROUS_PATTERNS=(
+    'rm[[:space:]]+-[[:alpha:]]*[rR][[:alpha:]]*[fF][[:space:]]+/'       # rm -rf /
+    'rm[[:space:]]+-[[:alpha:]]*[fF][[:alpha:]]*[rR][[:space:]]+/'       # rm -fr /
+    'mkfs\.'                                                              # mkfs.ext4, etc.
+    'dd[[:space:]].*of=/dev/'                                             # dd of=/dev/sda
+    'curl[[:space:]].*\|[[:space:]]*bash'                                 # curl | bash
+    'wget[[:space:]].*\|[[:space:]]*bash'                                 # wget | bash
+    'curl[[:space:]].*\|[[:space:]]*sh'                                   # curl | sh
+    'wget[[:space:]].*\|[[:space:]]*sh'                                   # wget | sh
+    'shutdown'                                                             # shutdown
+    'reboot'                                                               # reboot
+    'init[[:space:]]+[06]'                                                 # init 0 / init 6
+    'chmod[[:space:]]+-[Rr][[:space:]]+777[[:space:]]+/'                  # chmod -R 777 /
+    'chown[[:space:]]+-[Rr][[:space:]]+.*[[:space:]]+/'                   # chown -R ... /
+    '>[[:space:]]*/dev/sd[a-z]'                                           # > /dev/sda
+    '>[[:space:]]*/dev/nvme'                                               # > /dev/nvme
+    'fork[[:space:]]*bomb\|:\(\)\{[[:space:]]*:\|:[[:space:]]*&'          # fork bomb
+    '\|\s*tee\s+/dev/sd'                                                   # | tee /dev/sda
+)
+
+check_command_safety() {
+    local cmd="$1"
+    for pattern in "${DANGEROUS_PATTERNS[@]}"; do
+        if [[ "$cmd" =~ $pattern ]]; then
+            echo -e "${RED}⛔ BLOCKED: Command matches dangerous pattern${NC}" >&2
+            echo -e "${RED}   Pattern: ${pattern}${NC}" >&2
+            echo -e "${RED}   Command: ${cmd}${NC}" >&2
+            agent_log "BLOCKED" "Pattern=$pattern Command=$cmd"
+            return 1
+        fi
+    done
+    return 0
+}
+
 agent_mode() {
     local goal=$1
     local dry_run=$2
     local provider=$3
     local model=$4
 
+    agent_log "INFO" "Agent session started Goal=$goal"
+
     echo -e "${MAGENTA}agent mode${NC}"
     echo -e "Goal: ${BOLD}${goal}${NC}\n"
 
+    local ASK_ALL_OUTPUTS=""
+
     local context
     context=$(gather_context full)
-    local prompt="You are a bash automation agent. Create a step-by-step plan to: $goal
+    local prompt="Return a JSON array. No other text, no markdown fences.
+
+Schema:
+[{\"step\": int, \"description\": string, \"command\": string, \"risk\": \"low\"|\"medium\"|\"high\"}]
+
+Environment variables available to commands:
+- \$ASK_LAST_OUTPUT contains the stdout of the previous step
+- \$ASK_PREV_OUTPUTS contains all prior step outputs separated by ---
+
+Risk levels: low = read-only, medium = creates/modifies files, high = deletes/destroys data.
+
+Correct example:
+[{\"step\":1,\"description\":\"List text files\",\"command\":\"ls -la *.txt\",\"risk\":\"low\"},{\"step\":2,\"description\":\"Count files found\",\"command\":\"echo \\\"\$ASK_LAST_OUTPUT\\\" | wc -l\",\"risk\":\"low\"}]
+
+Wrong (do NOT do this):
+\`\`\`json
+[...]
+\`\`\`
 
 Context:
 $context
 
-Return a JSON array of steps with this structure:
-[
-  {
-    \"step\": 1,
-    \"description\": \"What this step does\",
-    \"command\": \"actual bash command\",
-    \"risk\": \"low|medium|high\"
-  }
-]
-
-Guidelines:
-- Use only safe, standard unix commands
-- Each command should be independently executable
-- Mark anything that DELETES or DESTROYS data as 'high' risk
-- Mark file creation/modification as 'medium' risk
-- Mark read-only operations as 'low' risk
-- Be conservative: when in doubt, mark as higher risk"
+Task: $goal"
 
     echo -e "${CYAN}Creating execution plan...${NC}\n"
     local plan
     plan=$(call_api "$provider" "$model" "$prompt" false "You are a bash automation expert. Always return valid JSON." 0.7 2048)
 
+    # Clean markdown fences before JSON validation
+    # shellcheck disable=SC2016
+    plan=$(echo "$plan" | sed 's/^```json//; s/^```//; s/```$//')
     plan=$(echo "$plan" | sed -n '/\[/,/\]/p')
 
     if ! echo "$plan" | jq empty 2>/dev/null; then
         echo -e "${RED}Failed to generate valid execution plan${NC}"
+        agent_log "ERROR" "Failed to parse plan JSON"
         return 1
     fi
+
+    local step_count
+    step_count=$(echo "$plan" | jq 'length')
+    agent_log "INFO" "Plan generated Steps=$step_count"
 
     echo -e "${BOLD}Execution Plan:${NC}"
     echo "$plan" | jq -r '.[] | "[\(.step)] \(.description)\n    Command: \(.command)\n    Risk: \(.risk)\n"'
@@ -1362,11 +1432,12 @@ Guidelines:
     plan_file=$(mktemp)
     echo "$plan" | jq -c '.[]' > "$plan_file"
 
-    local cmd desc risk
+    local cmd desc risk step_num
     while IFS= read -r step; do
         cmd=$(echo "$step" | jq -r '.command')
         desc=$(echo "$step" | jq -r '.description')
         risk=$(echo "$step" | jq -r '.risk')
+        step_num=$(echo "$step" | jq -r '.step')
 
         echo -e "\n${CYAN}→ $desc${NC}"
         echo -e "${DIM}$cmd${NC}"
@@ -1385,14 +1456,31 @@ Guidelines:
         fi
 
         if [ "$should_execute" = true ]; then
-            eval "$cmd"
+            if ! check_command_safety "$cmd"; then
+                echo -e "${YELLOW}⊘ Skipped (blocked)${NC}"
+                continue
+            fi
+            agent_log "EXEC" "Step=$step_num Command=$cmd"
+
+            local step_output
+            step_output=$(eval "$cmd" 2>&1)
             local exit_code
             exit_code=$?
 
+            # Display output
+            [ -n "$step_output" ] && echo "$step_output"
+
+            # Track outputs for forwarding
+            export ASK_LAST_OUTPUT="$step_output"
+            ASK_ALL_OUTPUTS="${ASK_ALL_OUTPUTS:+$ASK_ALL_OUTPUTS$'\n---\n'}[Step $step_num] $step_output"
+            export ASK_PREV_OUTPUTS="$ASK_ALL_OUTPUTS"
+
             if [ $exit_code -eq 0 ]; then
                 echo -e "${GREEN}✓ Success${NC}"
+                agent_log "INFO" "Step=$step_num Status=success"
             else
                 echo -e "${RED}✗ Failed (exit code: $exit_code)${NC}"
+                agent_log "ERROR" "Step=$step_num ExitCode=$exit_code"
                 echo -e "${YELLOW}Continue with next step? (y/n)${NC}"
                 read -r confirm </dev/tty
                 [[ ! $confirm =~ ^[Yy]$ ]] && break
@@ -1403,6 +1491,7 @@ Guidelines:
     done < "$plan_file"
 
     rm -f "$plan_file"
+    agent_log "INFO" "Agent session completed"
 }
 
 git_commit_helper() {
@@ -1513,6 +1602,12 @@ run_command_interactive() {
 
     # Validate command - skip if malformed
     if [ -z "$cmd" ] || [[ "$cmd" =~ ^[[:space:]]*$ ]]; then
+        return 1
+    fi
+
+    # Check against dangerous command blocklist
+    if ! check_command_safety "$cmd"; then
+        COLLECTED_OUTPUTS="${COLLECTED_OUTPUTS}\n\$ ${cmd}\n[BLOCKED - dangerous command]"
         return 1
     fi
 
