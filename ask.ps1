@@ -15,6 +15,10 @@ param(
     [switch]$ListModels,
     [switch]$Agent,
     [switch]$DryRun,
+    [Alias("x")]
+    [switch]$CommandOnly,
+    [Alias("X")]
+    [switch]$CommandExecute,
 
     [ValidateSet("none","min","auto","full")]
     [string]$Context = "auto",
@@ -393,6 +397,57 @@ function Gather-Context {
     }
     
     return $context
+}
+
+function Invoke-CommandOnlyMode {
+    param(
+        [string]$Task,
+        [string]$Provider,
+        [string]$Model,
+        [switch]$Execute,
+        [string]$ContextLevel = "auto"
+    )
+
+    $ctx = ""
+    if ($ContextLevel -ne "none") {
+        $ctx = Gather-Context $ContextLevel
+    }
+
+    $sysPrompt = "Output exactly one shell command. No explanation, no markdown, no backticks, no preamble. Just the command."
+    $fullPrompt = $Task
+    if (-not [string]::IsNullOrEmpty($ctx)) {
+        $fullPrompt = "Context:`n$ctx`n`nTask: $Task"
+    }
+
+    $result = Call-API -Provider $Provider -Model $Model -Prompt $fullPrompt `
+        -SystemPrompt $sysPrompt -Temperature 0.3 -MaxTokens 1024
+
+    if (-not $result) {
+        Write-Host "Failed to generate command" -ForegroundColor Red
+        return
+    }
+
+    # Strip markdown fences, backticks, whitespace
+    $result = $result.Trim()
+    $result = $result -replace '^```[a-z]*\n?', ''
+    $result = $result -replace '\n?```$', ''
+    $result = $result -replace '^`', ''
+    $result = $result -replace '`$', ''
+    $result = $result.Trim()
+
+    if ($Execute) {
+        Write-Host "$ $result" -ForegroundColor DarkGray
+        if (-not (Test-CommandSafety $result)) {
+            return
+        }
+        $confirm = Read-Host "Execute? [y/n]"
+        if ($confirm -match '^[Yy]$') {
+            $scriptBlock = [ScriptBlock]::Create($result)
+            & $scriptBlock
+        }
+    } else {
+        Write-Output $result
+    }
 }
 
 function Invoke-AgentMode {
@@ -997,6 +1052,8 @@ function Show-Help {
     Write-Host "    COMMAND | ask [PROMPT]     # Pipe input"
     Write-Host ""
     Write-Host "OPTIONS:" -ForegroundColor Yellow
+    Write-Host "    -CommandOnly (-x)     Output just the command, nothing else"
+    Write-Host "    -CommandExecute (-X)  Output the command and prompt to execute it"
     Write-Host "    -Agent               Enable agent mode for multi-step task execution"
     Write-Host "    -DryRun              Show agent plan without executing (implies -Agent)"
     Write-Host "    -Provider PROVIDER   Provider: anthropic, openai, openrouter, google, deepseek"
@@ -1076,6 +1133,24 @@ function Main {
         }
     }
     
+
+    # Command-only mode (-x / -X)
+    if ($CommandOnly -or $CommandExecute) {
+        if ([string]::IsNullOrEmpty($userPrompt)) {
+            Write-Host "❌ Command mode requires a prompt" -ForegroundColor Red
+            Write-Host "Usage: ask -x 'your task here'" -ForegroundColor Cyan
+            return
+        }
+        $cmdParams = @{
+            Task = $userPrompt
+            Provider = $Provider
+            Model = $Model
+            ContextLevel = $Context
+        }
+        if ($CommandExecute) { $cmdParams.Execute = $true }
+        Invoke-CommandOnlyMode @cmdParams
+        return
+    }
 
     # -DryRun implies -Agent
     if ($DryRun) { $Agent = $true }

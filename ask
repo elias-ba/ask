@@ -247,6 +247,8 @@ $(echo -e "${YELLOW}OPTIONS:${NC}")
     $(echo -e "${GREEN}--system${NC}") PROMPT           Custom system prompt
     $(echo -e "${GREEN}--context${NC}") [LEVEL]         Context level: none, min, auto, full [default: auto]
 
+    $(echo -e "${GREEN}-x${NC}")                         Command-only mode (output just the command)
+    $(echo -e "${GREEN}-X${NC}")                         Command-only mode + prompt to execute
     $(echo -e "${GREEN}--agent${NC}")                   Agent mode (execute commands)
     $(echo -e "${GREEN}--dry-run${NC}")                 Show plan without executing
     $(echo -e "${GREEN}--fn${NC}") NAME DESC            Generate shell function
@@ -305,6 +307,10 @@ $(echo -e "${YELLOW}EXAMPLES:${NC}")
 
     # Generate reusable functions
     $(echo -e "${DIM}ask --fn parse_nginx \"extract 500 errors from nginx logs\"${NC}")
+
+    # Command-only mode
+    $(echo -e "${DIM}ask -x \"find files larger than 1GB\"${NC}")
+    $(echo -e "${DIM}ask -X \"kill process on port 3000\"  # prompts to execute${NC}")
 
     # Context-aware queries
     $(echo -e "${DIM}git diff | ask \"explain what changed and suggest improvements\"${NC}")
@@ -1316,6 +1322,51 @@ Requirements:
     esac
 }
 
+command_only_mode() {
+    local prompt=$1
+    local execute=$2
+    local provider=$3
+    local model=$4
+    local context_level=${5:-auto}
+
+    local ctx=""
+    if [ "$context_level" != "none" ]; then
+        ctx=$(gather_context "$context_level")
+    fi
+
+    local system_prompt="Output exactly one shell command. No explanation, no markdown, no backticks, no preamble, no trailing newline. Just the command."
+    local full_prompt="$prompt"
+    if [ -n "$ctx" ]; then
+        full_prompt="Context:\n${ctx}\n\nTask: ${prompt}"
+    fi
+
+    local result
+    result=$(call_api "$provider" "$model" "$full_prompt" false "$system_prompt" 0.3 1024)
+
+    if [ -z "$result" ] || [ "$result" = "null" ]; then
+        echo -e "${RED}Failed to generate command${NC}" >&2
+        return 1
+    fi
+
+    # Strip markdown fences, backticks, and whitespace
+    # shellcheck disable=SC2016
+    result=$(echo "$result" | sed 's/^```[a-z]*//; s/```$//; s/^`//; s/`$//' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+    if [ "$execute" = true ]; then
+        echo -e "${DIM}\$${NC} ${result}" >&2
+        if ! check_command_safety "$result"; then
+            return 1
+        fi
+        echo -ne "${DIM}Execute? [y/n]:${NC} " >&2
+        read -r confirm </dev/tty
+        if [[ $confirm =~ ^[Yy]$ ]]; then
+            eval "$result"
+        fi
+    else
+        echo "$result"
+    fi
+}
+
 # Dangerous command blocklist - best-effort guardrail
 DANGEROUS_PATTERNS=(
     'rm[[:space:]]+-[[:alpha:]]*[rR][[:alpha:]]*[fF][[:space:]]+/'       # rm -rf /
@@ -2002,6 +2053,15 @@ main() {
                 context_level="${2:-auto}"
                 shift 2
                 ;;
+            -x)
+                mode="cmd"
+                shift
+                ;;
+            -X)
+                mode="cmd"
+                cmd_execute=true
+                shift
+                ;;
             --agent)
                 mode="agent"
                 shift
@@ -2112,6 +2172,14 @@ main() {
     fi
 
     case $mode in
+        cmd)
+            if [ -z "$prompt" ]; then
+                echo -e "${RED}Command mode requires a prompt${NC}"
+                echo "Usage: ask -x 'your task here'"
+                exit 1
+            fi
+            command_only_mode "$prompt" "${cmd_execute:-false}" "$provider" "$model" "$context_level"
+            ;;
         function)
             generate_function "$fn_name" "$fn_desc" "$provider" "$model"
             ;;
