@@ -14,6 +14,7 @@ param(
     [switch]$Help,
     [switch]$ListModels,
     [switch]$Agent,
+    [switch]$DryRun,
 
     [ValidateSet("none","min","auto","full")]
     [string]$Context = "auto",
@@ -68,6 +69,62 @@ function Load-Keys {
     }
 }
 
+
+$AGENT_LOG_FILE = "$CACHE_DIR\agent_history.log"
+
+function Write-AgentLog {
+    param(
+        [string]$Level,
+        [string]$Message
+    )
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $entry = "[$timestamp] [$Level] $Message"
+    try {
+        Add-Content -Path $AGENT_LOG_FILE -Value $entry -ErrorAction SilentlyContinue
+        # Simple log rotation: truncate to last 500 lines if over 1MB
+        if (Test-Path $AGENT_LOG_FILE) {
+            $fileInfo = Get-Item $AGENT_LOG_FILE -ErrorAction SilentlyContinue
+            if ($fileInfo -and $fileInfo.Length -gt 1MB) {
+                $lines = Get-Content $AGENT_LOG_FILE -Tail 500
+                $lines | Set-Content $AGENT_LOG_FILE
+            }
+        }
+    } catch {
+        # Silently ignore logging failures
+    }
+}
+
+function Test-CommandSafety {
+    param([string]$Command)
+
+    $dangerousPatterns = @(
+        @{ Pattern = 'Remove-Item\s+.*-Recurse.*-Force\s+[A-Z]:\\$';           Desc = "Remove-Item -Recurse -Force on drive root" }
+        @{ Pattern = 'Remove-Item\s+.*-Force.*-Recurse\s+[A-Z]:\\$';           Desc = "Remove-Item -Force -Recurse on drive root" }
+        @{ Pattern = 'Remove-Item\s+.*-Recurse.*-Force\s+/\s';                 Desc = "Remove-Item -Recurse -Force /" }
+        @{ Pattern = 'Format-Volume';                                            Desc = "Format-Volume" }
+        @{ Pattern = 'Clear-Disk';                                               Desc = "Clear-Disk" }
+        @{ Pattern = 'Stop-Computer';                                            Desc = "Stop-Computer (shutdown)" }
+        @{ Pattern = 'Restart-Computer';                                         Desc = "Restart-Computer (reboot)" }
+        @{ Pattern = 'iex\s*\(\s*iwr';                                          Desc = "iex(iwr ...) - remote code execution" }
+        @{ Pattern = 'Invoke-Expression\s*\(\s*Invoke-WebRequest';              Desc = "Invoke-Expression(Invoke-WebRequest ...) - remote code execution" }
+        @{ Pattern = 'iex\s*\(\s*Invoke-WebRequest';                            Desc = "iex(Invoke-WebRequest ...) - remote code execution" }
+        @{ Pattern = 'Invoke-Expression\s*\(\s*iwr';                            Desc = "Invoke-Expression(iwr ...) - remote code execution" }
+        @{ Pattern = 'Set-MpPreference\s+.*-DisableRealtimeMonitoring\s+\$true'; Desc = "Disabling Windows Defender" }
+        @{ Pattern = 'rm\s+-rf\s+/';                                            Desc = "rm -rf /" }
+        @{ Pattern = 'mkfs\.';                                                   Desc = "mkfs (format filesystem)" }
+        @{ Pattern = 'dd\s+.*of=/dev/';                                          Desc = "dd to device" }
+    )
+
+    foreach ($entry in $dangerousPatterns) {
+        if ($Command -match $entry.Pattern) {
+            Write-Host "⛔ BLOCKED: $($entry.Desc)" -ForegroundColor Red
+            Write-Host "   Command: $Command" -ForegroundColor Red
+            Write-AgentLog "BLOCKED" "Pattern=$($entry.Desc) Command=$Command"
+            return $false
+        }
+    }
+    return $true
+}
 
 function Manage-Keys {
     param(
@@ -343,80 +400,68 @@ function Invoke-AgentMode {
         [string]$Task,
         [string]$Provider,
         [string]$Model,
-        [string]$SystemPrompt
+        [string]$SystemPrompt,
+        [switch]$DryRun
     )
-    
+
+    Write-AgentLog "INFO" "Agent session started Task=$Task"
+
     Write-Host "🤖 Agent Mode Activated" -ForegroundColor Cyan
     Write-Host "Task: $Task" -ForegroundColor Yellow
     Write-Host "---" -ForegroundColor DarkGray
-    
+
     Write-Host "[1/3] Planning the task..." -ForegroundColor Cyan
-    
+
     $context = Gather-Context "min"
-    
+
     $planPrompt = @"
-You are a PowerShell automation agent. Create a step-by-step plan for: "$Task"
+Return a JSON array. No other text, no markdown fences.
+
+Schema:
+[{"step": int, "description": string, "command": string, "risk": "low"|"medium"|"high"}]
+
+Environment variables available to commands:
+- `$env:ASK_LAST_OUTPUT contains the stdout of the previous step
+- `$env:ASK_PREV_OUTPUTS contains all prior step outputs separated by ---
+
+Risk levels: low = read-only, medium = creates/modifies files, high = deletes/destroys data.
+
+Correct example:
+[{"step":1,"description":"List text files","command":"Get-ChildItem -Path . -Filter *.txt","risk":"low"},{"step":2,"description":"Count files found","command":"(`$env:ASK_LAST_OUTPUT -split \"`n\").Count","risk":"low"}]
+
+Wrong (do NOT do this):
+```json
+[...]
+```
 
 Context:
 $context
 
-IMPORTANT: Return ONLY a valid JSON array, without additional text, without backticks, without explanations.
-
-Return ONLY a JSON array with this EXACT structure:
-[
-  {
-    "step": 1,
-    "description": "Clear description of what this step does",
-    "command": "Complete and executable PowerShell command",
-    "risk": "low|medium|high"
-  }
-]
-
-Important Guidelines:
-1. Return ONLY the JSON, nothing else
-2. Each PowerShell command must be COMPLETE and EXECUTABLE
-3. ALWAYS close braces, parentheses and quotes
-4. Use only standard and safe PowerShell commands
-5. Mark as 'high' risk any operation that DELETES or DESTROYS data
-6. Mark as 'medium' risk file creation/modification
-7. Mark as 'low' risk read-only operations
-8. Be conservative: when in doubt, mark as higher risk
-9. Commands should be independently executable
-10. Use absolute paths or environment variables
-
-Valid JSON example:
-[
-  {
-    "step": 1,
-    "description": "Define downloads folder and list its contents",
-    "command": "`$downloadsFolder = \"`$env:USERPROFILE\\Downloads\"; Write-Host \"Folder: `$downloadsFolder\"; Get-ChildItem -Path `$downloadsFolder -File | Select-Object Name, Length, LastWriteTime",
-    "risk": "low"
-  }
-]
-
-Now, create the plan for: "$Task"
+Task: $Task
 "@
-    
+
     Write-Host "Planning the task..." -ForegroundColor DarkGray
     $planJson = Call-API -Provider $Provider -Model $Model -Prompt $planPrompt `
-    -SystemPrompt ($SystemPrompt + " You are a PowerShell expert. Respond ONLY with valid JSON.") `
-    -Temperature $AGENT_TEMPERATURE
+        -SystemPrompt ($SystemPrompt + " You are a PowerShell expert. Respond ONLY with valid JSON.") `
+        -Temperature $AGENT_TEMPERATURE
 
-    
     if (-not $planJson) {
         Write-Host "❌ Planning failed" -ForegroundColor Red
+        Write-AgentLog "ERROR" "Planning API call failed"
         return
     }
-    
+
     $plan = Extract-JsonFromResponse -Response $planJson
-    
+
     if (-not $plan) {
         Write-Host "❌ Unable to parse JSON plan" -ForegroundColor Red
         Write-Host "Response received:" -ForegroundColor Yellow
         Write-Host $planJson -ForegroundColor Gray
+        Write-AgentLog "ERROR" "Failed to parse plan JSON"
         return
     }
 
+    Write-AgentLog "INFO" "Plan generated Steps=$($plan.Count)"
 
     Write-Host "`n📋 Generated plan ($($plan.Count) steps):" -ForegroundColor Cyan
     $stepNumber = 1
@@ -426,8 +471,7 @@ Now, create the plan for: "$Task"
         Write-Host $step.description -ForegroundColor White
         Write-Host "     Risk: " -NoNewline
         Write-Host $step.risk -ForegroundColor $riskColor
-        
-       
+
         if ($step.command.Length -gt 100) {
             Write-Host "     Command: " -NoNewline -ForegroundColor Yellow
             Write-Host $step.command.Substring(0, 100) -ForegroundColor Gray -NoNewline
@@ -436,18 +480,23 @@ Now, create the plan for: "$Task"
             Write-Host "     Command: " -NoNewline -ForegroundColor Yellow
             Write-Host $step.command -ForegroundColor Gray
         }
-        
+
         $stepNumber++
     }
-    
+
     Write-Host "`n---" -ForegroundColor DarkGray
-    
-   
+
+    if ($DryRun) {
+        Write-Host "🏜️  Dry run - no commands executed" -ForegroundColor Yellow
+        Write-AgentLog "INFO" "Dry run completed"
+        return
+    }
+
     Write-Host "[2/3] Execution confirmation" -ForegroundColor Cyan
     $confirmation = Read-Host "Execute plan? (Y/N/Detailed) [N]"
-    
+
     if ($confirmation -match '^[Yy]') {
-    Invoke-AutoAgentExecution -Plan $plan
+        Invoke-AutoAgentExecution -Plan $plan
     }
     elseif ($confirmation -match '^[Dd]') {
         Invoke-DetailedAgentExecution -Plan $plan
@@ -456,63 +505,41 @@ Now, create the plan for: "$Task"
         Write-Host "❌ Execution cancelled" -ForegroundColor Yellow
         return
     }
+
+    Write-AgentLog "INFO" "Agent session completed"
 }
 function Extract-JsonFromResponse {
     param([string]$Response)
-    
-   
+
     $cleanResponse = $Response.Trim()
-    
-  
+
+    # Strip markdown fences
     $cleanResponse = $cleanResponse -replace '^```(?:json)?\s*\n?', ''
     $cleanResponse = $cleanResponse -replace '\n?```$', ''
     $cleanResponse = $cleanResponse.Trim()
-    
-  
+
+    # Method 1: Direct parse
     try {
         return $cleanResponse | ConvertFrom-Json -ErrorAction Stop
     }
     catch {
-        # Method 2: Search for JSON with regex
+        # Method 2: Regex extraction
         $jsonPattern = '\[\s*\{[\s\S]*?\}\s*\]'
         $match = [regex]::Match($cleanResponse, $jsonPattern, [System.Text.RegularExpressions.RegexOptions]::Singleline)
-        
+
         if ($match.Success) {
             $jsonText = $match.Value
-        
-            $jsonText = $jsonText -replace '^\s*\[\s*', '['
-            $jsonText = $jsonText -replace '\s*\]\s*$', ']'
             $jsonText = $jsonText -replace '[\r\n]+', ' '
             $jsonText = $jsonText -replace '\s+', ' '
-            
+
             try {
                 return $jsonText | ConvertFrom-Json -ErrorAction Stop
-            }
-            catch {
-              
-            }
-        }
-        
-        # Method 3: Manual extraction
-        $startChar = $cleanResponse.IndexOf('[')
-        $endChar = $cleanResponse.LastIndexOf(']')
-        
-        if ($startChar -ge 0 -and $endChar -gt $startChar) {
-            $possibleJson = $cleanResponse.Substring($startChar, $endChar - $startChar + 1)
-            
-          
-            $possibleJson = $possibleJson -replace '``', ''
-            $possibleJson = $possibleJson -replace '\\"', '"'
-            $possibleJson = $possibleJson -replace '`\$', '$'
-            
-            try {
-                return $possibleJson | ConvertFrom-Json -ErrorAction Stop
             }
             catch {
                 Write-Host "❌ JSON extraction failed" -ForegroundColor Red
             }
         }
-        
+
         return $null
     }
 }
@@ -523,68 +550,79 @@ function Invoke-StepCommand {
         [string]$StepNumber,
         [switch]$Silent
     )
-    
+
+    # Check against dangerous command blocklist
+    if (-not (Test-CommandSafety $Command)) {
+        return @{ Success = $false; Output = "[BLOCKED - dangerous command]" }
+    }
+
+    Write-AgentLog "EXEC" "Step=$StepNumber Command=$Command"
+
     try {
         Write-Host "🔄 Executing..." -ForegroundColor Cyan
-        
+
         $scriptBlock = [ScriptBlock]::Create($Command)
-        
+
         $output = & $scriptBlock 2>&1
-        
+
         $errors = $output | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }
-        
+
         if ($errors) {
             foreach ($err in $errors) {
                 Write-Host "⚠️ Command warning/error: $($err.Exception.Message)" -ForegroundColor Yellow
             }
         }
-        
+
         $normalOutput = $output | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] }
+        $outputStr = if ($normalOutput) { ($normalOutput | Out-String).Trim() } else { "" }
+
         if (-not $Silent -and $normalOutput) {
             Write-Host "📤 Output:" -ForegroundColor Green
             $normalOutput | Out-Host
         }
-        
+
         Write-Host "✓ Step $StepNumber completed" -ForegroundColor Green
-        return $true
+        Write-AgentLog "INFO" "Step=$StepNumber Status=success"
+        return @{ Success = $true; Output = $outputStr }
     }
     catch {
         Write-Host "❌ Error: " -NoNewline -ForegroundColor Red
         Write-Host $_.Exception.Message -ForegroundColor Red
-        return $false
+        Write-AgentLog "ERROR" "Step=$StepNumber Error=$($_.Exception.Message)"
+        return @{ Success = $false; Output = $_.Exception.Message }
     }
 }
 
 function Invoke-AutoAgentExecution {
     param($Plan)
-    
+
     Write-Host "[3/3] Automatic execution..." -ForegroundColor Cyan
-    
+
     $successCount = 0
     $errorCount = 0
     $skippedCount = 0
-    
+    $allOutputs = @()
+
     foreach ($step in $Plan) {
         Write-Host "`n--- Step $($step.step)/$($Plan.Count) ---" -ForegroundColor DarkGray
         Write-Host "📝 $($step.description)" -ForegroundColor Cyan
-        
-        # Afficher le niveau de risque avec couleur
+
         $riskColor = @{low = "Green"; medium = "Yellow"; high = "Red"}[$step.risk]
         Write-Host "⚠️  Risk level: " -NoNewline
         Write-Host $step.risk -ForegroundColor $riskColor
-        
+
         Write-Host "⚡ Command:" -ForegroundColor Yellow
         Write-Host $step.command -ForegroundColor Gray
-        
+
         if ($step.risk -eq "high") {
             Write-Host "`n⚠️  ⚠️  ⚠️  HIGH RISK OPERATION ⚠️  ⚠️  ⚠️" -ForegroundColor Red -BackgroundColor Black
             Write-Host "This step could potentially:" -ForegroundColor Yellow
             Write-Host "  • Delete or modify important data" -ForegroundColor Yellow
             Write-Host "  • Change system settings" -ForegroundColor Yellow
             Write-Host "  • Affect system stability" -ForegroundColor Yellow
-            
+
             $highRiskConfirm = Read-Host "`nExecute this high-risk step? (Y/N/Skip) [N]"
-            
+
             switch ($highRiskConfirm.ToUpper()) {
                 'Y' {
                     Write-Host "Proceeding with high-risk step..." -ForegroundColor Yellow
@@ -601,16 +639,21 @@ function Invoke-AutoAgentExecution {
                 }
             }
         }
-        
+
         $result = Invoke-StepCommand -Command $step.command -StepNumber $step.step
-        
-        if ($result) {
+
+        # Track outputs for forwarding
+        $allOutputs += "[Step $($step.step)] $($result.Output)"
+        [Environment]::SetEnvironmentVariable("ASK_LAST_OUTPUT", $result.Output, "Process")
+        [Environment]::SetEnvironmentVariable("ASK_PREV_OUTPUTS", ($allOutputs -join "`n---`n"), "Process")
+
+        if ($result.Success) {
             $successCount++
         }
         else {
             Write-Host "`n❌ Step failed!" -ForegroundColor Red
             $continue = Read-Host "Continue with remaining steps? (Y/N) [N]"
-            
+
             if ($continue -notmatch '^[Yy]') {
                 Write-Host "⏹️ Execution interrupted" -ForegroundColor Yellow
                 Display-ExecutionSummary -Success $successCount -Error $errorCount -Skipped $skippedCount -Total $Plan.Count
@@ -618,47 +661,49 @@ function Invoke-AutoAgentExecution {
             }
             $errorCount++
         }
-        
+
         if ($step.step -lt $Plan.Count) {
             Start-Sleep -Milliseconds 500
         }
     }
-    
+
     Display-ExecutionSummary -Success $successCount -Error $errorCount -Skipped $skippedCount -Total $Plan.Count
 }
 
 function Invoke-DetailedAgentExecution {
     param($Plan)
-    
+
     Write-Host "[3/3] Step-by-step execution..." -ForegroundColor Cyan
-    
+
     $successCount = 0
     $errorCount = 0
     $skippedCount = 0
-    
+    $allOutputs = @()
+
     foreach ($step in $Plan) {
         Write-Host "`n--- Step $($step.step)/$($Plan.Count) ---" -ForegroundColor DarkGray
         Write-Host "📝 $($step.description)" -ForegroundColor Cyan
-        
+
         $riskColor = @{low = "Green"; medium = "Yellow"; high = "Red"}[$step.risk]
         Write-Host "⚠️  Risk: " -NoNewline
         Write-Host $step.risk -ForegroundColor $riskColor
-        
+
         Write-Host "⚡ Command:" -ForegroundColor Yellow
         Write-Host $step.command -ForegroundColor Gray
-        
+
         Write-Host "`nOptions:" -ForegroundColor Cyan
         Write-Host "  [E] Execute this step" -ForegroundColor Green
         Write-Host "  [S] Skip this step" -ForegroundColor Yellow
         Write-Host "  [M] Modify command before execution" -ForegroundColor Cyan
         Write-Host "  [A] Stop execution" -ForegroundColor Red
-        
+
         $choice = Read-Host "`nYour choice [E]"
-        
+        $result = $null
+
         switch ($choice.ToUpper()) {
             'E' {
                 $result = Invoke-StepCommand -Command $step.command -StepNumber $step.step
-                if ($result) { $successCount++ } else { $errorCount++ }
+                if ($result.Success) { $successCount++ } else { $errorCount++ }
             }
             'S' {
                 Write-Host "⏭️ Step $($step.step) skipped" -ForegroundColor Yellow
@@ -669,12 +714,18 @@ function Invoke-DetailedAgentExecution {
                 Write-Host "✏️  Modifying command:" -ForegroundColor Cyan
                 Write-Host "Current command:" -ForegroundColor Yellow
                 Write-Host $step.command -ForegroundColor Gray
-                
+
                 $newCommand = Read-Host "`nNew command (leave empty to cancel)"
-                
+
                 if (-not [string]::IsNullOrWhiteSpace($newCommand)) {
+                    # Check safety of modified command too
+                    if (-not (Test-CommandSafety $newCommand)) {
+                        Write-Host "⚠️ Modified command blocked" -ForegroundColor Yellow
+                        $skippedCount++
+                        continue
+                    }
                     $result = Invoke-StepCommand -Command $newCommand -StepNumber $step.step
-                    if ($result) { $successCount++ } else { $errorCount++ }
+                    if ($result.Success) { $successCount++ } else { $errorCount++ }
                 } else {
                     Write-Host "⚠️ Modification cancelled" -ForegroundColor Yellow
                     $skippedCount++
@@ -687,15 +738,22 @@ function Invoke-DetailedAgentExecution {
             }
             default {
                 $result = Invoke-StepCommand -Command $step.command -StepNumber $step.step
-                if ($result) { $successCount++ } else { $errorCount++ }
+                if ($result.Success) { $successCount++ } else { $errorCount++ }
             }
         }
-        
+
+        # Track outputs for forwarding
+        if ($result) {
+            $allOutputs += "[Step $($step.step)] $($result.Output)"
+            [Environment]::SetEnvironmentVariable("ASK_LAST_OUTPUT", $result.Output, "Process")
+            [Environment]::SetEnvironmentVariable("ASK_PREV_OUTPUTS", ($allOutputs -join "`n---`n"), "Process")
+        }
+
         if ($step.step -lt $Plan.Count) {
             Start-Sleep -Milliseconds 500
         }
     }
-    
+
     Display-ExecutionSummary -Success $successCount -Error $errorCount -Skipped $skippedCount -Total $Plan.Count
 }
 
@@ -940,6 +998,7 @@ function Show-Help {
     Write-Host ""
     Write-Host "OPTIONS:" -ForegroundColor Yellow
     Write-Host "    -Agent               Enable agent mode for multi-step task execution"
+    Write-Host "    -DryRun              Show agent plan without executing (implies -Agent)"
     Write-Host "    -Provider PROVIDER   Provider: anthropic, openai, openrouter, google, deepseek"
     Write-Host "                              [default: anthropic]"
     Write-Host "    -Model MODEL         Model name"
@@ -1018,28 +1077,36 @@ function Main {
     }
     
 
+    # -DryRun implies -Agent
+    if ($DryRun) { $Agent = $true }
+
     if ($Agent) {
         if ([string]::IsNullOrEmpty($userPrompt)) {
             Write-Host "❌ Agent mode requires a task" -ForegroundColor Red
             Write-Host "Usage: ask --agent 'your task here'" -ForegroundColor Cyan
             return
         }
-        
- 
+
         if ($Context -eq "auto") {
-            $Context = "min"  
+            $Context = "min"
         }
-        
-     
+
         if ($Context -ne "none" -and -not [string]::IsNullOrEmpty($userPrompt)) {
             $ctx = Gather-Context $Context
             if (-not [string]::IsNullOrEmpty($ctx)) {
                 $userPrompt = "Context: $ctx`n`nTask: $userPrompt"
             }
         }
-        
-        Invoke-AgentMode -Task $userPrompt -Provider $Provider -Model $Model `
-            -SystemPrompt $SystemPrompt
+
+        $agentParams = @{
+            Task = $userPrompt
+            Provider = $Provider
+            Model = $Model
+            SystemPrompt = $SystemPrompt
+        }
+        if ($DryRun) { $agentParams.DryRun = $true }
+
+        Invoke-AgentMode @agentParams
         return
     }
     
