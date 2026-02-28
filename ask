@@ -1349,6 +1349,7 @@ command_only_mode() {
     fi
 
     # Strip markdown fences, backticks, and whitespace
+    # shellcheck disable=SC2016
     result=$(echo "$result" | sed 's/^```[a-z]*//; s/```$//; s/^`//; s/`$//' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
 
     if [ "$execute" = true ]; then
