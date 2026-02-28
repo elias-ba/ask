@@ -416,6 +416,13 @@ ask --version
 ask -n "your query"
 ```
 
+## Contributors
+
+<a href="https://github.com/elias-ba"><img src="https://github.com/elias-ba.png" width="50" height="50" alt="elias-ba" style="border-radius:50%"></a>
+<a href="https://github.com/MilkCoder26"><img src="https://github.com/MilkCoder26.png" width="50" height="50" alt="MilkCoder26" style="border-radius:50%"></a>
+<a href="https://github.com/Sanix-Darker"><img src="https://github.com/Sanix-Darker.png" width="50" height="50" alt="Sanix-Darker" style="border-radius:50%"></a>
+<a href="https://github.com/Yoannoza"><img src="https://github.com/Yoannoza.png" width="50" height="50" alt="Yoannoza" style="border-radius:50%"></a>
+
 ## License
 
 MIT License - See LICENSE file
