@@ -3,7 +3,7 @@
 # ask - AI-powered shell assistant
 # don't grep. don't awk. just ask
 
-VERSION="0.5.0"
+VERSION="0.6.0"
 
 if [ -z "$BASH_VERSION" ]; then
     echo "Error: This script requires Bash"
