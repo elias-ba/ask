@@ -1395,6 +1395,7 @@ Task: $goal"
     plan=$(call_api "$provider" "$model" "$prompt" false "You are a bash automation expert. Always return valid JSON." 0.7 2048)
 
     # Clean markdown fences before JSON validation
+    # shellcheck disable=SC2016
     plan=$(echo "$plan" | sed 's/^```json//; s/^```//; s/```$//')
     plan=$(echo "$plan" | sed -n '/\[/,/\]/p')
 
