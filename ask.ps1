@@ -29,7 +29,7 @@ param(
 
 # Configuration
 
-$VERSION = "0.6.0"
+$VERSION = "0.7.0"
 $AUTHOR = "Elias Waly Ba"
 $CONFIG_DIR = "$env:USERPROFILE\.config\ask"
 $CACHE_DIR = "$env:USERPROFILE\.cache\ask"
