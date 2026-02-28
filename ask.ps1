@@ -25,7 +25,7 @@ param(
 # Configuration
 
 $VERSION = "0.5.0"
-$AUTHOR = "Malick DIENE"
+$AUTHOR = "Elias Waly Ba"
 $CONFIG_DIR = "$env:USERPROFILE\.config\ask"
 $CACHE_DIR = "$env:USERPROFILE\.cache\ask"
 $KEYS_FILE = "$CONFIG_DIR\keys.env"
@@ -263,7 +263,7 @@ function Get-APIUrl {
 }
 
 
-function Get-models {
+function Get-Models {
     param($provider)
 
     Write-Host "Available models for $provider :" -ForegroundColor Cyan
@@ -930,125 +930,37 @@ function Call-API {
 }
 
 function Show-Help {
-    Write-Host "╔═══════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║" -NoNewline -ForegroundColor Cyan
-    Write-Host "                     ask - v$VERSION" -NoNewline -ForegroundColor White
-    Write-Host "                    ║" -ForegroundColor Cyan
-    Write-Host "║" -NoNewline -ForegroundColor Cyan
-    Write-Host "     AI-powered shell assistant for PowerShell" -NoNewline -ForegroundColor White
-    Write-Host "     ║" -ForegroundColor Cyan
-    Write-Host "║" -NoNewline -ForegroundColor Cyan
-    Write-Host "       don't grep. don't awk. just ask" -NoNewline -ForegroundColor Magenta
-    Write-Host "        ║" -ForegroundColor Cyan
-    Write-Host "╚═══════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host "ask - v$VERSION" -ForegroundColor Cyan
+    Write-Host "AI-powered shell assistant for PowerShell" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "📖 DESCRIPTION" -ForegroundColor Yellow
-    Write-Host "   An intelligent CLI assistant that uses AI to help with PowerShell tasks,"
-    Write-Host "   scripting, and system administration. Supports multiple AI providers."
+    Write-Host "USAGE:" -ForegroundColor Yellow
+    Write-Host "    ask [OPTIONS] [PROMPT]"
+    Write-Host "    ask [OPTIONS]              # Interactive mode"
+    Write-Host "    COMMAND | ask [PROMPT]     # Pipe input"
     Write-Host ""
-    
-    Write-Host "🚀 BASIC USAGE" -ForegroundColor Yellow
-    Write-Host "   ask [OPTIONS] [PROMPT]              # Single question mode"
-    Write-Host "   ask [OPTIONS]                       # Interactive mode"
-    Write-Host "   COMMAND | ask [OPTIONS] [PROMPT]    # Pipe input to ask"
+    Write-Host "OPTIONS:" -ForegroundColor Yellow
+    Write-Host "    -Agent               Enable agent mode for multi-step task execution"
+    Write-Host "    -Provider PROVIDER   Provider: anthropic, openai, openrouter, google, deepseek"
+    Write-Host "                              [default: anthropic]"
+    Write-Host "    -Model MODEL         Model name"
+    Write-Host "    -Context LEVEL       Context level: none, min, auto, full [default: auto]"
+    Write-Host "    -SystemPrompt TEXT   Custom system prompt"
+    Write-Host "    -ListModels          List available models for provider"
     Write-Host ""
-    
-    Write-Host "🎯 MODES" -ForegroundColor Yellow
-    Write-Host "   Normal Mode   Answer questions, explain code, provide commands"
-    Write-Host "   Agent Mode    Plan and execute complex multi-step tasks"
+    Write-Host "KEY MANAGEMENT:" -ForegroundColor Yellow
+    Write-Host "    ask keys set provider     Set API key for provider"
+    Write-Host "    ask keys list             List configured keys"
+    Write-Host "    ask keys remove provider  Remove API key"
+    Write-Host "    ask keys path             Show keys file location"
     Write-Host ""
-    
-    Write-Host "🔧 OPTIONS" -ForegroundColor Yellow
-    Write-Host "   -Agent                 Enable agent mode for complex task planning"
-    Write-Host "   -Provider PROVIDER     AI provider to use"
-    Write-Host "                          [default: anthropic]"
-    Write-Host "   -Model MODEL           Specific model to use (defaults per provider)"
-    Write-Host "   -Context LEVEL         System context to include:"
-    Write-Host "                          none    - No system information"
-    Write-Host "                          min     - Basic info only"
-    Write-Host "                          auto    - Smart context (default)"
-    Write-Host "                          full    - Detailed system information"
-    Write-Host "   -SystemPrompt TEXT     Custom system prompt for AI"
-    Write-Host "   -ListModels            List available models for the provider"
+    Write-Host "EXAMPLES:" -ForegroundColor Yellow
+    Write-Host "    ask keys set anthropic"
+    Write-Host "    ask 'how do I list services in Windows?'"
+    Write-Host "    ask -Provider openai 'explain this PowerShell script'"
+    Write-Host "    Get-ChildItem | ask -Context full 'what files do I have?'"
+    Write-Host "    ask -Agent 'clean up temp files older than 30 days'"
     Write-Host ""
-    
-    Write-Host "🤖 SUPPORTED PROVIDERS" -ForegroundColor Yellow
-    Write-Host "   anthropic    Claude models (claude-3-sonnet, claude-3-opus, claude-3-haiku)"
-    Write-Host "   openai       GPT models (gpt-4o, gpt-4o-mini, gpt-4-turbo)"
-    Write-Host "   openrouter   Unified API for multiple providers"
-    Write-Host "   google       Gemini models (gemini-2.5-flash, gemini-2.5-flash-lite)"
-    Write-Host "   deepseek     DeepSeek models (deepseek-chat, deepseek-coder)"
-    Write-Host ""
-    
-    Write-Host "🔑 API KEY MANAGEMENT" -ForegroundColor Yellow
-    Write-Host "   ask keys set provider         Set API key for a provider"
-    Write-Host "   ask keys list                 List all configured API keys"
-    Write-Host "   ask keys remove provider      Remove API key for a provider"
-    Write-Host "   ask keys path                 Show location of keys file"
-    Write-Host ""
-    Write-Host "   Keys are stored in: $KEYS_FILE" -ForegroundColor DarkGray
-    Write-Host ""
-    
-    Write-Host "📝 EXAMPLES" -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host "   # First time setup" -ForegroundColor Cyan
-    Write-Host "   ask keys set anthropic"
-    Write-Host ""
-    Write-Host "   # Basic questions" -ForegroundColor Cyan
-    Write-Host "   ask 'how do I list services in Windows?'"
-    Write-Host "   ask 'explain this PowerShell script' < script.ps1"
-    Write-Host "   Get-Process | ask 'which processes are using the most memory?'"
-    Write-Host ""
-    Write-Host "   # With different providers" -ForegroundColor Cyan
-    Write-Host "   ask -Provider openai 'write a function to backup files'"
-    Write-Host "   ask -Provider google -Model gemini-2.5-flash 'optimize this SQL query'"
-    Write-Host ""
-    Write-Host "   # Agent mode (complex tasks)" -ForegroundColor Cyan
-    Write-Host "   ask -agent 'find and optimize all PNG files in ./images'"
-    Write-Host "   ask -agent 'clean up temp files older than 30 days'"
-    Write-Host "   ask -agent 'organize my downloads folder by file type'"
-    Write-Host "   ask -agent 'create a backup script for my documents'"
-    Write-Host ""
-    Write-Host "   # Context and customization" -ForegroundColor Cyan
-    Write-Host "   ask -Context full 'what can you tell me about my system?'"
-    Write-Host "   ask -SystemPrompt 'You are a PowerShell security expert' 'audit my system'"
-    Write-Host ""
-    
-    Write-Host "🎪 AGENT MODE FEATURES" -ForegroundColor Yellow
-    Write-Host "   • Plans complex tasks step by step"
-    Write-Host "   • Executes PowerShell commands safely"
-    Write-Host "   • Asks for confirmation before risky operations"
-    Write-Host "   • Provides risk assessment for each step"
-    Write-Host "   • Allows step-by-step or automatic execution"
-    Write-Host ""
-    
-    Write-Host "⚙️  CONFIGURATION" -ForegroundColor Yellow
-    Write-Host "   Configuration directory: $CONFIG_DIR" -ForegroundColor Green
-    Write-Host "   Cache directory: $CACHE_DIR" -ForegroundColor Green
-    Write-Host "   Keys file: $KEYS_FILE" -ForegroundColor Green
-    Write-Host ""
-    
-    Write-Host "💡 TIPS" -ForegroundColor Yellow
-    Write-Host "   • Use quotes for multi-word prompts"
-    Write-Host "   • Pipe output to ask for analysis"
-    Write-Host "   • Start with -Context auto for better responses"
-    Write-Host "   • Use -ListModels to see available options"
-    Write-Host "   • Agent mode works best for multi-step system tasks"
-    Write-Host ""
-    
-    Write-Host "🔗 GETTING API KEYS" -ForegroundColor Yellow
-    Write-Host "   Anthropic:   https://console.anthropic.com/" -ForegroundColor Green
-    Write-Host "   OpenAI:      https://platform.openai.com/api-keys" -ForegroundColor Green
-    Write-Host "   OpenRouter:  https://openrouter.ai/keys" -ForegroundColor Green
-    Write-Host "   Google:      https://aistudio.google.com/apikey" -ForegroundColor Green
-    Write-Host "   DeepSeek:    https://platform.deepseek.com/" -ForegroundColor Green
-    Write-Host ""
-    
-    Write-Host "🆘 NEED MORE HELP?" -ForegroundColor Yellow
-    Write-Host "   Visit: https://github.com/elias-ba/ask" -ForegroundColor Cyan
-    Write-Host "   Report issues with detailed descriptions"
-    Write-Host ""
-    Write-Host "© $((Get-Date).Year) $AUTHOR - AI-powered CLI assistant" -ForegroundColor Magenta
+    Write-Host "https://github.com/elias-ba/ask" -ForegroundColor DarkGray
 }
 
 function Main {
